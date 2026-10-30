@@ -123,6 +123,12 @@
     }
   </style>
 
+
+  <style id="fair-play-rules">
+    /* Both players share one timer; no host-only pause/reset advantage. */
+    #seekerHostControls, #hiderHostControls { display: none !important; }
+  </style>
+
 </head>
 <body class="h-full flex flex-col font-sans select-none overflow-x-hidden antialiased bg-slate-950 text-slate-100">
 
@@ -579,6 +585,12 @@
       timeRemaining: 60,
       isTimerPaused: false,
       timerInterval: null,
+      seekerQuestionsUsed: 0,
+      seekerPingsUsed: 0,
+      hiderDecoysUsed: 0,
+      lastQuestionAt: 0,
+      lastPingAt: 0,
+      lastDecoyAt: 0,
     };
 
     // Initialize random 4-digit ID generator
@@ -765,6 +777,7 @@
           break;
 
         case 'QUESTION':
+          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playQuestionAlert();
           if (gameState.role === 'HIDER') {
             document.getElementById('hiderQuestionDisplay').innerHTML = `
@@ -786,6 +799,7 @@
           break;
 
         case 'PROXIMITY_REQUEST':
+          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playRadarPing();
           if (gameState.role === 'HIDER') {
             document.getElementById('hiderQuestionDisplay').innerHTML = `
@@ -797,11 +811,19 @@
           break;
 
         case 'DECOY_TRIGGERED':
+          if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playDecoySound();
           logEvent(`⚠️ DECOY SOUND PLAYED BY HIDER!`);
           break;
 
+        case 'MATCH_END':
+          clearInterval(gameState.timerInterval);
+          alert(data.message || 'Time is up! The Hider wins this round.');
+          location.reload();
+          break;
+
         case 'FOUND_TAG':
+          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playTone(1000, 'square', 0.5);
           alert(`🎉 GAME OVER! Seeker (${gameState.peerName}) tagged the Hider!`);
           location.reload();
@@ -840,6 +862,12 @@
       gameState.currentPhase = 'HIDING';
       gameState.timeRemaining = gameState.hidingDuration;
       gameState.isTimerPaused = false;
+      gameState.seekerQuestionsUsed = 0;
+      gameState.seekerPingsUsed = 0;
+      gameState.hiderDecoysUsed = 0;
+      gameState.lastQuestionAt = 0;
+      gameState.lastPingAt = 0;
+      gameState.lastDecoyAt = 0;
 
       AudioEngine.playPhaseAlert();
       logEvent(`Game started! Phase: HIDING (${gameState.hidingDuration}s)`);
@@ -888,8 +916,13 @@
           } else {
             clearInterval(gameState.timerInterval);
             AudioEngine.playTone(300, 'sawtooth', 0.8);
-            logEvent('⌛ TIME EXPIRED! Hiders win the match!');
-            alert('⌛ TIME EXPIRED! Hiders successfully evaded the Seeker!');
+            logEvent('Time is up! Hider wins the round.');
+            if (gameState.connection) gameState.connection.send({
+              type: 'MATCH_END',
+              message: 'Time is up! The Hider wins this round!'
+            });
+            alert('Time is up! The Hider wins this round!');
+            location.reload();
           }
         }
       }, 1000);
@@ -970,8 +1003,22 @@
     // --- OTHER ACTIONS ---
     function sendQuestion(text) {
       if (!gameState.connection) return;
+      if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') {
+        logEvent('Questions unlock when seeking starts.');
+        return;
+      }
+      if (gameState.seekerQuestionsUsed >= 8) {
+        logEvent('You used all 8 questions for this round.');
+        return;
+      }
+      if (Date.now() - gameState.lastQuestionAt < 5000) {
+        logEvent('Wait a few seconds before asking again.');
+        return;
+      }
+      gameState.seekerQuestionsUsed++;
+      gameState.lastQuestionAt = Date.now();
       gameState.connection.send({ type: 'QUESTION', text: text });
-      logEvent(`You asked: "${text}"`);
+      logEvent(`Question ${gameState.seekerQuestionsUsed}/8: "${text}"`);
     }
 
     function sendCustomQuestion() {
@@ -985,6 +1032,10 @@
 
     function sendHiderAnswer(ansText) {
       if (!gameState.connection) return;
+      if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') {
+        logEvent('You can answer once the seeking phase begins.');
+        return;
+      }
       gameState.connection.send({ type: 'ANSWER', text: ansText });
       logEvent(`You transmitted answer: "${ansText}"`);
       
@@ -994,18 +1045,44 @@
 
     function requestProximityPing() {
       if (!gameState.connection) return;
+      if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') {
+        logEvent('Hot/cold hints unlock when seeking starts.');
+        return;
+      }
+      if (gameState.seekerPingsUsed >= 3) {
+        logEvent('You used all 3 hot/cold hints for this round.');
+        return;
+      }
+      if (Date.now() - gameState.lastPingAt < 20000) {
+        logEvent('Wait 20 seconds before asking for another hot/cold hint.');
+        return;
+      }
+      gameState.seekerPingsUsed++;
+      gameState.lastPingAt = Date.now();
       AudioEngine.playRadarPing();
       gameState.connection.send({ type: 'PROXIMITY_REQUEST' });
       document.getElementById('lastSignalText').innerText = 'PING SENT...';
-      logEvent('Requested proximity Hot/Cold signal from Hider.');
+      logEvent(`Hot/cold hint ${gameState.seekerPingsUsed}/3 requested.`);
     }
 
     function triggerDecoySound() {
-      AudioEngine.playDecoySound();
-      if (gameState.connection) {
-        gameState.connection.send({ type: 'DECOY_TRIGGERED' });
+      if (!gameState.connection) return;
+      if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') {
+        logEvent('Decoys unlock when seeking starts.');
+        return;
       }
-      logEvent('Triggered decoy sound effect!');
+      if (gameState.hiderDecoysUsed >= 2) {
+        logEvent('You used both decoy sounds for this round.');
+        return;
+      }
+      if (Date.now() - gameState.lastDecoyAt < 45000) {
+        logEvent('Wait 45 seconds before using another decoy.');
+        return;
+      }
+      gameState.hiderDecoysUsed++;
+      gameState.lastDecoyAt = Date.now();
+      gameState.connection.send({ type: 'DECOY_TRIGGERED' });
+      logEvent(`Decoy ${gameState.hiderDecoysUsed}/2 played!`);
     }
 
     function toggleStealthMode() {
@@ -1023,6 +1100,7 @@
 
     function confirmHiderFound() {
       closeFoundModal();
+      if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') return;
       if (gameState.connection) {
         gameState.connection.send({ type: 'FOUND_TAG' });
       }
