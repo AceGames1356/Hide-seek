@@ -207,7 +207,8 @@
           </div>
         </div>
 
-        <!-- Phase Duration Controls for Host -->
+        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HIDE_SEEK">Classic QR Hide & Seek</option><option value="MARCO_POLO">Marco Polo</option></select><p class="kid-help">Marco Polo: seekers call “Marco!” and hiders answer “Polo!”</p></div>
+      <!-- Phase Duration Controls for Host -->
         <div class="space-y-2">
           <label class="block text-xs font-mono text-slate-400 uppercase">GAME TIME</label>
           <div class="grid grid-cols-2 gap-3 font-mono text-xs">
@@ -245,6 +246,7 @@
           <input type="text" id="joinCodeInput" placeholder="e.g. 4821" maxlength="6" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 font-mono text-xl text-center font-bold tracking-widest text-radar-500 focus:outline-none focus:border-radar-500 uppercase">
         </div>
 
+        <label class="block text-xs text-slate-300">CHOOSE YOUR TEAM</label><select id="joinRoleSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HIDER">Hider team</option><option value="SEEKER">Seeker team</option></select>
         <button onclick="joinRoom()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
           <i class="fa-solid fa-plug"></i>
           <span>JOIN GAME</span>
@@ -278,10 +280,7 @@
           <p id="waitingSubtitle" class="text-xs text-slate-400 mt-1">Share room code <span id="waitingCodeDisplay" class="font-mono text-radar-500 font-bold"></span> with your player.</p>
         </div>
 
-        <div id="connectedPeerBadge" class="hidden bg-slate-950 border border-radar-500/50 p-3 rounded-lg text-sm font-mono text-slate-300 flex items-center justify-between">
-          <span class="text-xs text-slate-400">CONNECTED WITH:</span>
-          <span id="connectedPeerName" class="font-bold text-radar-500">Agent-2</span>
-        </div>
+        <div class="bg-slate-950 border border-radar-500/50 p-3 rounded-lg text-sm">Players: <b id="playerCount">1/8</b><div id="playerList" class="text-xs text-slate-400 mt-2">Waiting for friends...</div></div>
 
         <button id="startGameBtn" onclick="sendStartGameSignal()" class="w-full bg-radar-500 text-slate-950 font-mono font-bold py-3 rounded-lg opacity-50 cursor-not-allowed transition-all uppercase tracking-wider" disabled>
           START GAME
@@ -391,6 +390,7 @@
         <button id="stopScanBtn" onclick="stopQrScanner()" class="hidden w-full bg-slate-700 text-white py-3 rounded-xl">Stop camera</button>
       </div>
 
+      <div id="marcoSeekerControls" class="kid-card space-y-2 hidden"><div class="kid-title">📣 Marco Polo</div><p class="kid-help">Call out and listen for the hiders!</p><button onclick="sendMarcoCall()" class="w-full bg-violet-500 text-white py-3">📣 MARCO!</button></div>
       <!-- Proximity Request & Found Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-2">
           <button onclick="requestProximityPing()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
@@ -473,6 +473,7 @@
           </div>
         </div>
 
+        <div id="marcoHiderControls" class="kid-card space-y-2 hidden"><div class="kid-title">🙋 Marco Polo</div><p class="kid-help">Tap when you hear “Marco!”</p><button onclick="sendPoloReply()" class="w-full bg-cyan-500 text-white py-3">🙋 POLO!</button></div>
         <!-- Hot/Cold Proximity Quick Answers -->
         <div class="space-y-2 pt-1">
           <div class="text-[10px] font-mono text-slate-400 uppercase">Proximity Rating (Hot or Cold)</div>
@@ -623,6 +624,9 @@
       lastPingAt: 0,
       lastDecoyAt: 0,
       scanToken: '',
+      gameMode: 'HIDE_SEEK',
+      connections: [],
+      players: [],
       qrScannerStream: null,
       qrScannerActive: false,
       qrScanFrame: null,
@@ -687,6 +691,7 @@
       gameState.playerName = document.getElementById('playerNameInput').value || 'Host-Agent';
       gameState.hidingDuration = parseInt(document.getElementById('hideDurationSelect').value) || 60;
       gameState.seekingDuration = parseInt(document.getElementById('seekDurationSelect').value) || 300;
+      gameState.gameMode = document.getElementById('gameModeSelect').value;
       
       document.getElementById('generatedRoomCode').innerText = gameState.roomCode;
       document.getElementById('waitingCodeDisplay').innerText = gameState.roomCode;
@@ -701,8 +706,9 @@
       });
 
       gameState.peer.on('connection', (conn) => {
-        gameState.connection = conn;
-        setupConnectionHandlers();
+        if (gameState.connections.length >= 7) { conn.on('open',()=>conn.send({type:'ROOM_FULL'})); setTimeout(()=>conn.close(),500); return; }
+        gameState.connections.push(conn); if (!gameState.connection) gameState.connection = conn;
+        setupConnectionHandlers(conn);
       });
 
       gameState.peer.on('error', (err) => {
@@ -719,6 +725,7 @@
       gameState.isHost = false;
       gameState.roomCode = inputCode;
       gameState.playerName = document.getElementById('playerNameInput').value || 'Join-Agent';
+      gameState.role = document.getElementById('joinRoleSelect').value;
 
       gameState.peer = new Peer();
 
@@ -728,7 +735,7 @@
         gameState.connection = gameState.peer.connect(hostPeerId, {
           metadata: { name: gameState.playerName }
         });
-        setupConnectionHandlers();
+        setupConnectionHandlers(gameState.connection);
       });
 
       gameState.peer.on('error', (err) => {
@@ -738,8 +745,7 @@
       });
     }
 
-    function setupConnectionHandlers() {
-      const conn = gameState.connection;
+    function setupConnectionHandlers(conn = gameState.connection) {
 
       conn.on('open', () => {
         updateStatus('ONLINE', 'bg-emerald-500');
@@ -753,9 +759,9 @@
         });
 
         if (gameState.isHost) {
+          updateRoomPlayers();
           document.getElementById('startGameBtn').disabled = false;
           document.getElementById('startGameBtn').classList.remove('opacity-50', 'cursor-not-allowed');
-          document.getElementById('connectedPeerBadge').classList.remove('hidden');
         } else {
           showView('viewWaiting');
           document.getElementById('waitingTitle').innerText = 'Connected to Host!';
@@ -764,7 +770,8 @@
       });
 
       conn.on('data', (data) => {
-        handleIncomingData(data);
+        if (gameState.isHost && data.type !== 'HANDSHAKE') broadcastToPlayers(data, conn);
+        handleIncomingData(data, conn);
       });
 
       conn.on('close', () => {
@@ -775,25 +782,21 @@
     }
 
     // --- GAME PROTOCOL DATA HANDLER ---
-    function handleIncomingData(data) {
+    function handleIncomingData(data, sourceConn) {
       console.log('Received packet:', data);
 
       switch (data.type) {
         case 'HANDSHAKE':
-          gameState.peerName = data.name;
-          if (!gameState.isHost) {
-            gameState.role = (data.role === 'SEEKER') ? 'HIDER' : 'SEEKER';
-            gameState.hidingDuration = data.hidingDuration || 60;
-            gameState.seekingDuration = data.seekingDuration || 300;
-          }
-          document.getElementById('connectedPeerName').innerText = gameState.peerName;
-          logEvent(`Operative connected: ${gameState.peerName}`);
+          if (gameState.isHost) { gameState.players.push({name:String(data.name||'Player').slice(0,16),role:data.role==='SEEKER'?'SEEKER':'HIDER'}); updateRoomPlayers(); logEvent(data.name+' joined!'); }
+          else { gameState.peerName=data.name||'Host'; gameState.hidingDuration=data.hidingDuration||60; gameState.seekingDuration=data.seekingDuration||300; }
           break;
+        case 'ROOM_FULL': alert('Room is full!'); location.reload(); break;
 
         case 'START_GAME':
           gameState.hidingDuration = data.hidingDuration;
           gameState.seekingDuration = data.seekingDuration;
           gameState.scanToken = data.scanToken || '';
+          gameState.gameMode = data.gameMode || 'HIDE_SEEK';
           startGamePhase(data.scanToken);
           break;
 
@@ -853,6 +856,12 @@
           logEvent(`⚠️ DECOY SOUND PLAYED BY HIDER!`);
           break;
 
+        case 'MARCO_CALL':
+          if (gameState.role === 'HIDER') { AudioEngine.playQuestionAlert(); document.getElementById('hiderQuestionDisplay').innerText='📣 MARCO! Tap POLO to answer!'; }
+          logEvent('📣 A seeker called MARCO!'); break;
+        case 'POLO_REPLY':
+          if (gameState.role === 'SEEKER') { AudioEngine.playTone(660,'sine',.3); document.getElementById('lastSignalText').innerText='🙋 POLO!'; }
+          logEvent('🙋 A hider answered POLO!'); break;
         case 'MATCH_END':
           clearInterval(gameState.timerInterval);
           alert(data.message || 'Time is up! The Hider wins this round.');
@@ -871,17 +880,16 @@
 
     // --- GAMEPLAY & SYNCHRONIZED TIMER ENGINE ---
     function sendStartGameSignal() {
-      if (gameState.connection) {
-        gameState.scanToken = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
-        gameState.connection.send({
-          type: 'START_GAME',
-          hidingDuration: gameState.hidingDuration,
-          seekingDuration: gameState.seekingDuration,
-          scanToken: gameState.scanToken
-        });
-        startGamePhase(gameState.scanToken);
-      }
+      if (!gameState.isHost || !gameState.connections.length) return;
+      gameState.scanToken = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
+      broadcastToPlayers({type:'START_GAME',hidingDuration:gameState.hidingDuration,seekingDuration:gameState.seekingDuration,scanToken:gameState.scanToken,gameMode:gameState.gameMode});
+      startGamePhase(gameState.scanToken);
     }
+    function broadcastToPlayers(packet, exceptConn) { gameState.connections.forEach(c=>{if(c!==exceptConn&&c.open)c.send(packet);}); }
+    function sendGameMessage(packet) { if(gameState.isHost) broadcastToPlayers(packet); else if(gameState.connection&&gameState.connection.open) gameState.connection.send(packet); }
+    function updateRoomPlayers() { const c=document.getElementById('playerCount'); if(c)c.innerText=(gameState.connections.length+1)+'/8'; const l=document.getElementById('playerList'); if(l)l.innerText=['You ('+gameState.role+')',...gameState.players.map(p=>p.name+' ('+p.role+')')].join(' • '); }
+    function sendMarcoCall() { if(gameState.role==='SEEKER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'MARCO_CALL'});logEvent('📣 You called MARCO!');} }
+    function sendPoloReply() { if(gameState.role==='HIDER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'POLO_REPLY'});logEvent('🙋 You answered POLO!');} }
 
     function startGamePhase(scanToken) {
       if (scanToken) gameState.scanToken = scanToken;
@@ -890,6 +898,8 @@
       } else {
         showView('viewHider');
       }
+      document.getElementById('marcoSeekerControls').classList.toggle('hidden',gameState.gameMode!=='MARCO_POLO');
+      document.getElementById('marcoHiderControls').classList.toggle('hidden',gameState.gameMode!=='MARCO_POLO');
 
       // Display Host Controls if current player is host
       if (gameState.isHost) {
@@ -929,7 +939,7 @@
 
         // Sync packet to Client
         if (gameState.connection) {
-          gameState.connection.send({
+          broadcastToPlayers({
             type: 'TIMER_SYNC',
             timeRemaining: gameState.timeRemaining,
             currentPhase: gameState.currentPhase,
@@ -946,8 +956,8 @@
             gameState.timeRemaining = gameState.seekingDuration;
             updateFindPictureUI();
 
-            if (gameState.connection) {
-              gameState.connection.send({
+            if (gameState.isHost) {
+              broadcastToPlayers({
                 type: 'PHASE_CHANGE',
                 newPhase: 'SEEKING',
                 timeRemaining: gameState.seekingDuration
@@ -960,7 +970,7 @@
             clearInterval(gameState.timerInterval);
             AudioEngine.playTone(300, 'sawtooth', 0.8);
             logEvent('Time is up! Hider wins the round.');
-            if (gameState.connection) gameState.connection.send({
+            if (gameState.connection) broadcastToPlayers({
               type: 'MATCH_END',
               message: 'Time is up! The Hider wins this round!'
             });
@@ -985,7 +995,7 @@
       logEvent(`Timer ${gameState.isTimerPaused ? 'PAUSED' : 'RESUMED'} by Host.`);
 
       if (gameState.connection) {
-        gameState.connection.send({
+        broadcastToPlayers({
           type: 'TIMER_SYNC',
           timeRemaining: gameState.timeRemaining,
           currentPhase: gameState.currentPhase,
@@ -1004,7 +1014,7 @@
       logEvent('Operation timer RESET by Host.');
 
       if (gameState.connection) {
-        gameState.connection.send({
+        broadcastToPlayers({
           type: 'PHASE_CHANGE',
           newPhase: 'HIDING',
           timeRemaining: gameState.hidingDuration
@@ -1060,7 +1070,7 @@
       }
       gameState.seekerQuestionsUsed++;
       gameState.lastQuestionAt = Date.now();
-      gameState.connection.send({ type: 'QUESTION', text: text });
+      sendGameMessage({ type: 'QUESTION', text: text });
       logEvent(`Question ${gameState.seekerQuestionsUsed}/8: "${text}"`);
     }
 
@@ -1079,7 +1089,7 @@
         logEvent('You can answer once the seeking phase begins.');
         return;
       }
-      gameState.connection.send({ type: 'ANSWER', text: ansText });
+      sendGameMessage({ type: 'ANSWER', text: ansText });
       logEvent(`You transmitted answer: "${ansText}"`);
       
       document.getElementById('hiderAlertBadge').className = 'bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]';
@@ -1103,7 +1113,7 @@
       gameState.seekerPingsUsed++;
       gameState.lastPingAt = Date.now();
       AudioEngine.playRadarPing();
-      gameState.connection.send({ type: 'PROXIMITY_REQUEST' });
+      sendGameMessage({ type: 'PROXIMITY_REQUEST' });
       document.getElementById('lastSignalText').innerText = 'PING SENT...';
       logEvent(`Hot/cold hint ${gameState.seekerPingsUsed}/3 requested.`);
     }
@@ -1124,7 +1134,7 @@
       }
       gameState.hiderDecoysUsed++;
       gameState.lastDecoyAt = Date.now();
-      gameState.connection.send({ type: 'DECOY_TRIGGERED' });
+      sendGameMessage({ type: 'DECOY_TRIGGERED' });
       logEvent(`Decoy ${gameState.hiderDecoysUsed}/2 played!`);
     }
 
@@ -1150,7 +1160,7 @@
     function updateFindPictureUI() {
       const qrCard = document.getElementById('hiderQrCard');
       if (!qrCard) return;
-      const ready = gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
+      const ready = gameState.gameMode !== 'MARCO_POLO' && gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
       qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready);
       if (ready) {
         const box = document.getElementById('qrCodeBox');
@@ -1203,7 +1213,7 @@
         if (code && code.data === 'HIDESEEK:' + gameState.roomCode + ':' + gameState.scanToken) {
           gameState.qrScannerActive = false;
           stopQrScanner();
-          if (gameState.connection) gameState.connection.send({ type: 'FOUND_TAG', scanToken: gameState.scanToken });
+          if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: gameState.scanToken });
           AudioEngine.playTone(880, 'sine', .2);
           alert('🎉 You found your friend! Great scanning!');
           location.reload();
