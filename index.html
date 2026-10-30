@@ -260,8 +260,8 @@
           <span>HOW TO PLAY</span>
         </div>
         <p>1. One player creates a room and shares the code.</p>
-        <p>2. The other player joins with that code.</p>
-        <p>3. Hider shows their secret QR picture. Seeker scans it to win!</p>
+        <p>2. Friends can join up to 8 players and choose the Hider or Seeker team.</p>
+        <p>3. Pick Classic QR Hide & Seek or Marco Polo!</p>
         <p>Play somewhere safe and stay within your agreed play area.</p>
       </div>
     </section>
@@ -938,7 +938,7 @@
         gameState.timeRemaining--;
 
         // Sync packet to Client
-        if (gameState.connection) {
+        if (gameState.isHost) {
           broadcastToPlayers({
             type: 'TIMER_SYNC',
             timeRemaining: gameState.timeRemaining,
@@ -1055,7 +1055,7 @@
 
     // --- OTHER ACTIONS ---
     function sendQuestion(text) {
-      if (!gameState.connection) return;
+      if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('Questions unlock when seeking starts.');
         return;
@@ -1084,7 +1084,7 @@
     }
 
     function sendHiderAnswer(ansText) {
-      if (!gameState.connection) return;
+      if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('You can answer once the seeking phase begins.');
         return;
@@ -1161,7 +1161,7 @@
       const qrCard = document.getElementById('hiderQrCard');
       if (!qrCard) return;
       const ready = gameState.gameMode !== 'MARCO_POLO' && gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
-      qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready);
+      qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready || gameState.gameMode === 'MARCO_POLO');
       if (ready) {
         const box = document.getElementById('qrCodeBox');
         box.innerHTML = '';
