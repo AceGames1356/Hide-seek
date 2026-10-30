@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tactical Hide & Seek</title>
+  <title>Hide & Seek Party!</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PeerJS CDN for WebRTC connection without dedicated backend -->
@@ -71,6 +71,58 @@
       scrollbar-width: none;
     }
   </style>
+
+  <style id="kid-friendly-redesign">
+    :root { color-scheme: dark; }
+    body {
+      background: radial-gradient(circle at 12% 5%, #4338ca 0, transparent 32%),
+                  radial-gradient(circle at 92% 12%, #0e7490 0, transparent 30%),
+                  linear-gradient(145deg, #111827, #172554 58%, #312e81) !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+    }
+    header { background: rgba(30, 41, 59, .92) !important; border-color: rgba(255,255,255,.14) !important; }
+    header span, h1, h2 { font-family: 'Inter', system-ui, sans-serif !important; letter-spacing: -.03em !important; text-transform: none !important; }
+    main { max-width: 560px !important; padding: 18px !important; }
+    #viewLobby > div:first-child h1 { font-size: clamp(2rem, 8vw, 2.7rem) !important; font-weight: 900 !important; }
+    #viewLobby > div:first-child p { font-size: 1rem !important; color: #dbeafe !important; }
+    .tactical-border, #hostCard, #joinCard, #viewWaiting > div,
+    #viewSeeker > div, #viewHider > div {
+      border: 1px solid rgba(255,255,255,.16) !important;
+      border-radius: 24px !important;
+      background: rgba(30, 41, 59, .92) !important;
+      box-shadow: 0 14px 34px rgba(0,0,0,.22) !important;
+    }
+    button {
+      min-height: 48px;
+      border-radius: 16px !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      font-size: 14px !important;
+      font-weight: 800 !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      transition: transform .14s ease, filter .14s ease, box-shadow .14s ease !important;
+    }
+    button:not(:disabled):active { transform: scale(.97); }
+    button:not(:disabled):hover { filter: brightness(1.12); }
+    input, select {
+      min-height: 48px;
+      border-radius: 14px !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      font-size: 16px !important;
+    }
+    label, .font-mono { font-family: 'Inter', system-ui, sans-serif !important; letter-spacing: 0 !important; }
+    .radar-grid { border-radius: 24px !important; }
+    #tabHost, #tabJoin { min-height: 52px; }
+    #gameLogSection { border-radius: 20px !important; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid #fbbf24 !important;
+      outline-offset: 3px !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+
 </head>
 <body class="h-full flex flex-col font-sans select-none overflow-x-hidden antialiased bg-slate-950 text-slate-100">
 
@@ -78,7 +130,7 @@
   <header class="w-full bg-slate-900/80 backdrop-blur border-b border-slate-800 p-3 px-4 flex items-center justify-between z-20">
     <div class="flex items-center space-x-2">
       <i class="fa-solid fa-radar text-radar-500 text-xl animate-spin" style="animation-duration: 8s;"></i>
-      <span class="font-mono font-bold text-lg tracking-wider bg-gradient-to-r from-radar-500 to-emerald-400 bg-clip-text text-transparent">TAC-SEEK</span>
+      <span class="font-mono font-bold text-lg tracking-wider bg-gradient-to-r from-radar-500 to-emerald-400 bg-clip-text text-transparent">HIDE & SEEK</span>
     </div>
 
     <!-- Connection Indicator -->
@@ -94,26 +146,26 @@
     <!-- VIEW 1: LOBBY / SETUP -->
     <section id="viewLobby" class="flex-1 flex flex-col justify-center space-y-6 my-auto py-4">
       <div class="text-center space-y-2">
-        <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Hide & Seek HQ</h1>
-        <p class="text-slate-400 text-sm">Connect devices locally via PeerJS for real-time tactical ops.</p>
+        <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Let’s Play Hide & Seek!</h1>
+        <p class="text-slate-400 text-sm">Create a room, invite a friend, and let the fun begin!</p>
       </div>
 
       <!-- Player Name Input -->
       <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3">
-        <label class="block text-xs font-mono text-slate-400 uppercase">Callsign / Name</label>
+        <label class="block text-xs font-mono text-slate-400 uppercase">YOUR NAME</label>
         <input type="text" id="playerNameInput" value="Agent-1" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-radar-500 transition-colors">
       </div>
 
       <!-- Mode Selector Tabs -->
       <div class="bg-slate-900 p-1.5 rounded-xl border border-slate-800 flex font-mono text-sm">
-        <button id="tabHost" onclick="switchLobbyTab('host')" class="flex-1 py-2.5 rounded-lg font-semibold transition-all bg-radar-500 text-slate-950 shadow">CREATE ROOM</button>
-        <button id="tabJoin" onclick="switchLobbyTab('join')" class="flex-1 py-2.5 rounded-lg font-semibold text-slate-400 hover:text-slate-200 transition-all">JOIN ROOM</button>
+        <button id="tabHost" onclick="switchLobbyTab('host')" class="flex-1 py-2.5 rounded-lg font-semibold transition-all bg-radar-500 text-slate-950 shadow">MAKE A ROOM</button>
+        <button id="tabJoin" onclick="switchLobbyTab('join')" class="flex-1 py-2.5 rounded-lg font-semibold text-slate-400 hover:text-slate-200 transition-all">JOIN A ROOM</button>
       </div>
 
       <!-- HOST CARD -->
       <div id="hostCard" class="bg-slate-900 p-5 rounded-xl tactical-border space-y-4">
         <div class="space-y-1">
-          <label class="block text-xs font-mono text-slate-400 uppercase">Your Room Code</label>
+          <label class="block text-xs font-mono text-slate-400 uppercase">ROOM CODE</label>
           <div class="flex items-center space-x-2">
             <div id="generatedRoomCode" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 font-mono text-xl text-center font-bold tracking-widest text-radar-500">
               ----
@@ -126,7 +178,7 @@
 
         <!-- Role Select -->
         <div class="space-y-2">
-          <label class="block text-xs font-mono text-slate-400 uppercase">Your Host Role</label>
+          <label class="block text-xs font-mono text-slate-400 uppercase">PICK YOUR ROLE</label>
           <div class="grid grid-cols-2 gap-3 font-mono text-xs">
             <button id="roleBtnSeeker" onclick="selectHostRole('SEEKER')" class="p-3 rounded-lg border-2 border-seeker-500 bg-seeker-500/10 text-seeker-500 font-bold flex flex-col items-center space-y-1">
               <i class="fa-solid fa-binoculars text-lg"></i>
@@ -141,10 +193,10 @@
 
         <!-- Phase Duration Controls for Host -->
         <div class="space-y-2">
-          <label class="block text-xs font-mono text-slate-400 uppercase">Operational Timers (Minutes)</label>
+          <label class="block text-xs font-mono text-slate-400 uppercase">GAME TIME</label>
           <div class="grid grid-cols-2 gap-3 font-mono text-xs">
             <div>
-              <span class="text-[10px] text-slate-500 block mb-1">Hiding Time</span>
+              <span class="text-[10px] text-slate-500 block mb-1">Hiding time</span>
               <select id="hideDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
                 <option value="30">30 Seconds</option>
                 <option value="60" selected>1 Minute</option>
@@ -153,7 +205,7 @@
               </select>
             </div>
             <div>
-              <span class="text-[10px] text-slate-500 block mb-1">Seeking Time</span>
+              <span class="text-[10px] text-slate-500 block mb-1">Finding time</span>
               <select id="seekDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
                 <option value="180">3 Minutes</option>
                 <option value="300" selected>5 Minutes</option>
@@ -166,20 +218,20 @@
 
         <button onclick="initializeHost()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
           <i class="fa-solid fa-satellite-dish"></i>
-          <span>Initialize Room</span>
+          <span>CREATE ROOM</span>
         </button>
       </div>
 
       <!-- JOIN CARD -->
       <div id="joinCard" class="bg-slate-900 p-5 rounded-xl tactical-border space-y-4 hidden">
         <div class="space-y-1">
-          <label class="block text-xs font-mono text-slate-400 uppercase">Enter Room Code</label>
+          <label class="block text-xs font-mono text-slate-400 uppercase">ENTER ROOM CODE</label>
           <input type="text" id="joinCodeInput" placeholder="e.g. 4821" maxlength="6" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 font-mono text-xl text-center font-bold tracking-widest text-radar-500 focus:outline-none focus:border-radar-500 uppercase">
         </div>
 
         <button onclick="joinRoom()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
           <i class="fa-solid fa-plug"></i>
-          <span>Connect to Host</span>
+          <span>JOIN GAME</span>
         </button>
       </div>
 
@@ -187,10 +239,10 @@
       <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-2">
         <div class="font-mono font-bold text-slate-300 flex items-center space-x-2">
           <i class="fa-solid fa-circle-info text-radar-500"></i>
-          <span>Tactical Setup Guide</span>
+          <span>HOW TO PLAY</span>
         </div>
-        <p>1. Player A creates a room and shares the 4-digit room code.</p>
-        <p>2. Player B enters the code and joins. WebRTC handles direct peer-to-peer audio & data flow.</p>
+        <p>1. 1. One player makes a room and shares the code.</p>
+        <p>2. 2. The other player enters the code. Then you’re ready to play!</p>
       </div>
     </section>
 
@@ -214,7 +266,7 @@
         </div>
 
         <button id="startGameBtn" onclick="sendStartGameSignal()" class="w-full bg-radar-500 text-slate-950 font-mono font-bold py-3 rounded-lg opacity-50 cursor-not-allowed transition-all uppercase tracking-wider" disabled>
-          Start Operational Phase
+          START GAME
         </button>
       </div>
     </section>
@@ -230,7 +282,7 @@
               <i class="fa-solid fa-binoculars text-lg"></i>
             </div>
             <div>
-              <div class="text-xs font-mono text-slate-400">OPERATIVE ROLE</div>
+              <div class="text-xs font-mono text-slate-400">YOUR ROLE</div>
               <div class="text-sm font-mono font-bold text-seeker-500">SEEKER</div>
             </div>
           </div>
@@ -281,7 +333,7 @@
       <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3 flex-1 flex flex-col justify-between">
         <div class="space-y-2">
           <div class="text-xs font-mono text-slate-400 uppercase flex justify-between items-center">
-            <span>Interrogate Hider</span>
+            <span>ASK A QUESTION</span>
             <i class="fa-solid fa-headset text-radar-500"></i>
           </div>
 
@@ -314,11 +366,11 @@
         <div class="grid grid-cols-2 gap-3 pt-2">
           <button onclick="requestProximityPing()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
             <i class="fa-solid fa-satellite text-radar-500"></i>
-            <span>PING HOT/COLD</span>
+            <span>ASK: HOT OR COLD?</span>
           </button>
           <button onclick="openFoundModal()" class="bg-seeker-500 hover:bg-red-600 text-white font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 shadow-lg shadow-seeker-500/20 transition-all">
             <i class="fa-solid fa-crosshairs"></i>
-            <span>FOUND HIDER!</span>
+            <span>I FOUND YOU!</span>
           </button>
         </div>
       </div>
@@ -335,7 +387,7 @@
               <i class="fa-solid fa-user-ninja text-lg"></i>
             </div>
             <div>
-              <div class="text-xs font-mono text-slate-400">OPERATIVE ROLE</div>
+              <div class="text-xs font-mono text-slate-400">YOUR ROLE</div>
               <div class="text-sm font-mono font-bold text-radar-500">HIDER</div>
             </div>
           </div>
@@ -790,7 +842,7 @@
       gameState.isTimerPaused = false;
 
       AudioEngine.playPhaseAlert();
-      logEvent(`Operational Phase Started. Phase: HIDING (${gameState.hidingDuration}s)`);
+      logEvent(`Game started! Phase: HIDING (${gameState.hidingDuration}s)`);
 
       if (gameState.isHost) {
         startHostMasterTimer();
