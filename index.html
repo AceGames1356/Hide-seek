@@ -127,6 +127,24 @@
     #qrCodeBox { display:flex; justify-content:center; align-items:center; min-height:190px; background:#fff; border-radius:18px; padding:12px; }
     #qrCodeBox img, #qrCodeBox canvas { max-width:100%; height:auto; }
     #scanVideo { width:100%; border-radius:16px; background:#0f172a; }
+    .power-card-panel { padding:15px; border-radius:20px; border:1px solid rgba(196,181,253,.25); background:linear-gradient(145deg,rgba(49,46,129,.48),rgba(30,41,59,.92)); }
+    .power-eyebrow { color:#c4b5fd; font-size:9px; font-weight:900; letter-spacing:.16em; margin-bottom:3px; }
+    .power-count { border-radius:999px; padding:5px 9px; color:#ddd6fe; background:rgba(139,92,246,.18); border:1px solid rgba(196,181,253,.22); font-size:11px; font-weight:900; }
+    .power-card-hand { display:grid; grid-template-columns:1fr; gap:9px; }
+    .power-card { display:flex; align-items:center; gap:11px; padding:11px; border-radius:15px; border:1px solid rgba(255,255,255,.13); background:rgba(15,23,42,.75); text-align:left; }
+    .power-card.boost { border-color:rgba(52,211,153,.35); }
+    .power-card.curse { border-color:rgba(251,113,133,.35); }
+    .power-card-icon { display:grid; place-items:center; width:39px; height:45px; flex:0 0 39px; border-radius:11px; font-size:19px; background:rgba(139,92,246,.2); }
+    .power-card.boost .power-card-icon { color:#6ee7b7; background:rgba(16,185,129,.14); }
+    .power-card.curse .power-card-icon { color:#fda4af; background:rgba(244,63,94,.14); }
+    .power-card-info { flex:1; min-width:0; }
+    .power-card-name { color:#f8fafc; font-size:12px; font-weight:900; }
+    .power-card-type { font-size:9px; font-weight:900; letter-spacing:.1em; margin-top:2px; }
+    .power-card.boost .power-card-type { color:#6ee7b7; }
+    .power-card.curse .power-card-type { color:#fda4af; }
+    .power-card-desc { color:#cbd5e1; font-size:10px; line-height:1.35; margin-top:3px; }
+    .power-card-use { min-height:36px !important; padding:7px 10px !important; border-radius:10px !important; color:#fff; background:#6d5ce8; font-size:11px !important; white-space:nowrap; }
+    .power-empty { padding:14px 10px; border:1px dashed rgba(196,181,253,.25); border-radius:13px; color:#94a3b8; font-size:11px; text-align:center; }
     /* A polished QR badge: all decoration stays outside the actual scannable code. */
     .qr-poster { position:relative; overflow:hidden; padding:20px !important; background:linear-gradient(145deg,#172554,#1e1b4b 58%,#312e81) !important; border:1px solid rgba(165,180,252,.35) !important; box-shadow:0 18px 42px rgba(8,12,35,.38),inset 0 1px rgba(255,255,255,.1) !important; }
     .qr-poster:before { content:""; position:absolute; width:190px; height:190px; border-radius:50%; right:-100px; top:-105px; background:rgba(129,140,248,.14); pointer-events:none; }
@@ -496,6 +514,16 @@
           </div>
         </div>
 
+        <!-- Hider power-up card hand -->
+        <div id="hiderCardPanel" class="power-card-panel space-y-3">
+          <div class="flex items-center justify-between">
+            <div><div class="power-eyebrow">BONUS DROP</div><div class="kid-title">🎴 Your power cards</div></div>
+            <span id="hiderCardCount" class="power-count">0 / 3</span>
+          </div>
+          <p class="kid-help">Every Seeker question gives you a random card. Use it when the timing is right!</p>
+          <div id="hiderCardHand" class="power-card-hand"><div class="power-empty">Your first card arrives when a Seeker asks a question.</div></div>
+        </div>
+
         <!-- Quick Response Grid -->
         <div class="space-y-2">
           <div class="text-[10px] font-mono text-slate-400 uppercase">Quick Transmit Answers</div>
@@ -654,6 +682,10 @@
       seekerQuestionsUsed: 0,
       seekerPingsUsed: 0,
       hiderDecoysUsed: 0,
+      hiderExtraDecoys: 0,
+      hiderCards: [],
+      seekerQuestionBlockedUntil: 0,
+      seekerScannerBlockedUntil: 0,
       lastQuestionAt: 0,
       lastPingAt: 0,
       lastDecoyAt: 0,
@@ -854,6 +886,7 @@
           if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playQuestionAlert();
           if (gameState.role === 'HIDER') {
+            awardHiderCard();
             document.getElementById('hiderQuestionDisplay').innerHTML = `
               <div class="text-rose-400 font-bold mb-1"><i class="fa-solid fa-circle-question"></i> QUESTION FROM SEEKER:</div>
               <div class="text-slate-100 font-semibold">${data.text}</div>
@@ -862,6 +895,19 @@
             document.getElementById('hiderAlertBadge').innerText = 'ACTION REQUIRED';
           }
           logEvent(`Seeker asked: "${data.text}"`);
+          break;
+
+        case 'CARD_EFFECT':
+          if (gameState.role === 'SEEKER' && gameState.currentPhase === 'SEEKING') applySeekerCardEffect(data.effect, data.duration);
+          break;
+
+        case 'TIME_MODIFIER':
+          if (gameState.isHost && gameState.currentPhase === 'SEEKING') {
+            gameState.timeRemaining = Math.max(1, Math.min(gameState.seekingDuration + 60, gameState.timeRemaining + Number(data.amount || 0)));
+            broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused});
+            renderTimerUI();
+            logEvent(data.amount > 0 ? '🎁 Hider bonus time added!' : '⏳ A Hider card stole time from the Seekers!');
+          }
           break;
 
         case 'ANSWER':
@@ -951,6 +997,11 @@
       gameState.seekerQuestionsUsed = 0;
       gameState.seekerPingsUsed = 0;
       gameState.hiderDecoysUsed = 0;
+      gameState.hiderExtraDecoys = 0;
+      gameState.hiderCards = [];
+      gameState.seekerQuestionBlockedUntil = 0;
+      gameState.seekerScannerBlockedUntil = 0;
+      renderHiderCards();
       gameState.lastQuestionAt = 0;
       gameState.lastPingAt = 0;
       gameState.lastDecoyAt = 0;
@@ -1094,6 +1145,10 @@
         logEvent('Questions unlock when seeking starts.');
         return;
       }
+      if (Date.now() < gameState.seekerQuestionBlockedUntil) {
+        logEvent('⚡ Your question system is jammed by a Hider card!');
+        return;
+      }
       if (gameState.seekerQuestionsUsed >= 8) {
         logEvent('You used all 8 questions for this round.');
         return;
@@ -1114,6 +1169,83 @@
       if (val) {
         sendQuestion(val);
         input.value = '';
+      }
+    }
+
+    const HIDER_POWER_CARDS = [
+      {id:'time_gift',name:'Time Gift',kind:'boost',icon:'⏱️',description:'Add 15 seconds to the Hider team’s time.',action:'time',amount:15},
+      {id:'decoy_charge',name:'Decoy Charge',kind:'boost',icon:'🎭',description:'Get one extra decoy sound this round.',action:'decoy'},
+      {id:'question_jam',name:'Question Jam',kind:'curse',icon:'📵',description:'Stop Seekers asking questions for 15 seconds.',action:'jam',duration:15000},
+      {id:'scanner_glitch',name:'Scanner Glitch',kind:'curse',icon:'📷',description:'Disable the Seeker scanner for 12 seconds.',action:'glitch',duration:12000},
+      {id:'time_snare',name:'Time Snare',kind:'curse',icon:'🕸️',description:'Take 15 seconds away from the Seekers.',action:'time',amount:-15}
+    ];
+
+    function awardHiderCard() {
+      if (gameState.hiderCards.length >= 3) {
+        logEvent('🎴 Your card hand is full! Use a card first.');
+        return;
+      }
+      const card = HIDER_POWER_CARDS[Math.floor(Math.random() * HIDER_POWER_CARDS.length)];
+      gameState.hiderCards.push(card.id);
+      renderHiderCards();
+      logEvent('🎴 Card earned: ' + card.name + '!');
+    }
+
+    function renderHiderCards() {
+      const hand = document.getElementById('hiderCardHand');
+      const count = document.getElementById('hiderCardCount');
+      if (!hand || !count) return;
+      count.innerText = gameState.hiderCards.length + ' / 3';
+      if (!gameState.hiderCards.length) {
+        hand.innerHTML = '<div class="power-empty">Your first card arrives when a Seeker asks a question.</div>';
+        return;
+      }
+      hand.innerHTML = gameState.hiderCards.map((id,index) => {
+        const card = HIDER_POWER_CARDS.find(item => item.id === id);
+        if (!card) return '';
+        return '<div class="power-card ' + card.kind + '">' +
+          '<div class="power-card-icon">' + card.icon + '</div>' +
+          '<div class="power-card-info"><div class="power-card-name">' + card.name + '</div>' +
+          '<div class="power-card-type">' + (card.kind === 'boost' ? 'HIDER BOOST' : 'SEEKER CURSE') + '</div>' +
+          '<div class="power-card-desc">' + card.description + '</div></div>' +
+          '<button class="power-card-use" onclick="useHiderCard(' + index + ')">USE</button></div>';
+      }).join('');
+    }
+
+    function useHiderCard(index) {
+      if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') return;
+      const cardId = gameState.hiderCards[index];
+      const card = HIDER_POWER_CARDS.find(item => item.id === cardId);
+      if (!card) return;
+      gameState.hiderCards.splice(index,1);
+      renderHiderCards();
+      if (card.action === 'time') {
+        const packet = {type:'TIME_MODIFIER',amount:card.amount};
+        if (gameState.isHost) {
+          gameState.timeRemaining = Math.max(1,Math.min(gameState.seekingDuration + 60,gameState.timeRemaining + card.amount));
+          broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused});
+          renderTimerUI();
+        } else {
+          sendGameMessage(packet);
+        }
+      } else if (card.action === 'decoy') {
+        gameState.hiderExtraDecoys++;
+        logEvent('🎭 You gained one extra decoy sound!');
+      } else {
+        sendGameMessage({type:'CARD_EFFECT',effect:card.action,duration:card.duration});
+      }
+      logEvent('✨ Used ' + card.name + '!');
+    }
+
+    function applySeekerCardEffect(effect,duration) {
+      if (effect === 'jam') {
+        gameState.seekerQuestionBlockedUntil = Math.max(gameState.seekerQuestionBlockedUntil,Date.now() + Number(duration || 15000));
+        logEvent('📵 QUESTION JAM! Hiders blocked your questions temporarily.');
+      } else if (effect === 'glitch') {
+        gameState.seekerScannerBlockedUntil = Math.max(gameState.seekerScannerBlockedUntil,Date.now() + Number(duration || 12000));
+        stopQrScanner();
+        document.getElementById('scanStatus').innerText = '📷 Scanner glitch! Hiders scrambled your scanner.';
+        logEvent('📷 SCANNER GLITCH! You cannot scan for a short time.');
       }
     }
 
@@ -1158,7 +1290,7 @@
         logEvent('Decoys unlock when seeking starts.');
         return;
       }
-      if (gameState.hiderDecoysUsed >= 2) {
+      if (gameState.hiderDecoysUsed >= 2 + gameState.hiderExtraDecoys) {
         logEvent('You used both decoy sounds for this round.');
         return;
       }
@@ -1212,6 +1344,11 @@
 
     async function startQrScanner() {
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING' || !gameState.scanToken) return;
+      if (Date.now() < gameState.seekerScannerBlockedUntil) {
+        const seconds = Math.ceil((gameState.seekerScannerBlockedUntil - Date.now()) / 1000);
+        document.getElementById('scanStatus').innerText = '⚡ Scanner glitch! Try again in ' + seconds + ' seconds.';
+        return;
+      }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
         document.getElementById('scanStatus').innerText = 'Camera scanning is not supported here. Open the game on HTTPS in Safari or Chrome.';
         return;
