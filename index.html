@@ -8,6 +8,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PeerJS CDN for WebRTC connection without dedicated backend -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- QR code creation and camera scanning -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Font: Orbitron & Inter -->
@@ -118,6 +121,12 @@
       outline: 3px solid #fbbf24 !important;
       outline-offset: 3px !important;
     }
+    .kid-card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 22px; padding: 16px; }
+    .kid-title { font-size: 1rem; font-weight: 900; color: #f8fafc; }
+    .kid-help { color: #cbd5e1; font-size: .85rem; line-height: 1.45; }
+    #qrCodeBox { display:flex; justify-content:center; align-items:center; min-height:190px; background:#fff; border-radius:18px; padding:12px; }
+    #qrCodeBox img, #qrCodeBox canvas { max-width:100%; height:auto; }
+    #scanVideo { width:100%; border-radius:16px; background:#0f172a; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
@@ -152,13 +161,14 @@
     <!-- VIEW 1: LOBBY / SETUP -->
     <section id="viewLobby" class="flex-1 flex flex-col justify-center space-y-6 my-auto py-4">
       <div class="text-center space-y-2">
-        <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Let’s Play Hide & Seek!</h1>
-        <p class="text-slate-400 text-sm">Create a room, invite a friend, and let the fun begin!</p>
+        <div class="text-5xl">🕵️‍♀️🎉</div>
+        <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Hide & Seek Party!</h1>
+        <p class="text-slate-400 text-sm">Pick a role, hide somewhere safe, and have fun with a friend!</p>
       </div>
 
       <!-- Player Name Input -->
       <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3">
-        <label class="block text-xs font-mono text-slate-400 uppercase">YOUR NAME</label>
+        <label class="block text-xs font-mono text-slate-400 uppercase">WHAT SHOULD WE CALL YOU?</label>
         <input type="text" id="playerNameInput" value="Agent-1" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-radar-500 transition-colors">
       </div>
 
@@ -184,7 +194,7 @@
 
         <!-- Role Select -->
         <div class="space-y-2">
-          <label class="block text-xs font-mono text-slate-400 uppercase">PICK YOUR ROLE</label>
+          <label class="block text-xs font-mono text-slate-400 uppercase">CHOOSE YOUR ROLE</label>
           <div class="grid grid-cols-2 gap-3 font-mono text-xs">
             <button id="roleBtnSeeker" onclick="selectHostRole('SEEKER')" class="p-3 rounded-lg border-2 border-seeker-500 bg-seeker-500/10 text-seeker-500 font-bold flex flex-col items-center space-y-1">
               <i class="fa-solid fa-binoculars text-lg"></i>
@@ -247,8 +257,10 @@
           <i class="fa-solid fa-circle-info text-radar-500"></i>
           <span>HOW TO PLAY</span>
         </div>
-        <p>1. 1. One player makes a room and shares the code.</p>
-        <p>2. 2. The other player enters the code. Then you’re ready to play!</p>
+        <p>1. One player creates a room and shares the code.</p>
+        <p>2. The other player joins with that code.</p>
+        <p>3. Hider shows their secret QR picture. Seeker scans it to win!</p>
+        <p>Play somewhere safe and stay within your agreed play area.</p>
       </div>
     </section>
 
@@ -368,7 +380,18 @@
           </div>
         </div>
 
-        <!-- Proximity Request & Found Buttons -->
+        <!-- Scan the Hider's personal game badge -->
+      <div class="kid-card space-y-3">
+        <div class="kid-title">🔎 Found the hiding spot?</div>
+        <p class="kid-help">Ask your friend to show their secret picture, then scan it here to finish the round!</p>
+        <video id="scanVideo" class="hidden" playsinline muted></video>
+        <canvas id="scanCanvas" class="hidden"></canvas>
+        <div id="scanStatus" class="text-sm text-sky-200 text-center">Camera is off. Get close to your friend first!</div>
+        <button id="startScanBtn" onclick="startQrScanner()" class="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-xl">📷 Scan Hider's Picture</button>
+        <button id="stopScanBtn" onclick="stopQrScanner()" class="hidden w-full bg-slate-700 text-white py-3 rounded-xl">Stop camera</button>
+      </div>
+
+      <!-- Proximity Request & Found Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-2">
           <button onclick="requestProximityPing()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
             <i class="fa-solid fa-satellite text-radar-500"></i>
@@ -415,6 +438,14 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Hider's personal scan picture -->
+      <div id="hiderQrCard" class="kid-card space-y-3 text-center">
+        <div class="kid-title">🌟 Your Secret Find-Me Picture</div>
+        <p class="kid-help">Show this picture to the Seeker when they find you. They must scan it to win!</p>
+        <div id="qrCodeBox"><span class="text-slate-500">Your picture appears when the finding round starts.</span></div>
+        <div id="hiderQrStatus" class="text-sm text-sky-200">Keep this screen ready!</div>
       </div>
 
       <!-- INCOMING QUESTION CARD / PROMPT AREA -->
@@ -591,6 +622,10 @@
       lastQuestionAt: 0,
       lastPingAt: 0,
       lastDecoyAt: 0,
+      scanToken: '',
+      qrScannerStream: null,
+      qrScannerActive: false,
+      qrScanFrame: null,
     };
 
     // Initialize random 4-digit ID generator
@@ -758,7 +793,8 @@
         case 'START_GAME':
           gameState.hidingDuration = data.hidingDuration;
           gameState.seekingDuration = data.seekingDuration;
-          startGamePhase();
+          gameState.scanToken = data.scanToken || '';
+          startGamePhase(data.scanToken);
           break;
 
         case 'TIMER_SYNC':
@@ -770,6 +806,7 @@
 
         case 'PHASE_CHANGE':
           gameState.currentPhase = data.newPhase;
+          updateFindPictureUI();
           gameState.timeRemaining = data.timeRemaining;
           AudioEngine.playPhaseAlert();
           logEvent(`🚨 PHASE CHANGED TO: ${data.newPhase} PHASE!`);
@@ -823,9 +860,10 @@
           break;
 
         case 'FOUND_TAG':
-          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') break;
-          AudioEngine.playTone(1000, 'square', 0.5);
-          alert(`🎉 GAME OVER! Seeker (${gameState.peerName}) tagged the Hider!`);
+          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING' || data.scanToken !== gameState.scanToken) break;
+          stopQrScanner();
+          AudioEngine.playTone(1000, 'sine', 0.35);
+          alert(`🎉 You were found! ${gameState.peerName} scanned your picture!`);
           location.reload();
           break;
       }
@@ -834,16 +872,19 @@
     // --- GAMEPLAY & SYNCHRONIZED TIMER ENGINE ---
     function sendStartGameSignal() {
       if (gameState.connection) {
+        gameState.scanToken = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
         gameState.connection.send({
           type: 'START_GAME',
           hidingDuration: gameState.hidingDuration,
-          seekingDuration: gameState.seekingDuration
+          seekingDuration: gameState.seekingDuration,
+          scanToken: gameState.scanToken
         });
-        startGamePhase();
+        startGamePhase(gameState.scanToken);
       }
     }
 
-    function startGamePhase() {
+    function startGamePhase(scanToken) {
+      if (scanToken) gameState.scanToken = scanToken;
       if (gameState.role === 'SEEKER') {
         showView('viewSeeker');
       } else {
@@ -861,6 +902,7 @@
 
       gameState.currentPhase = 'HIDING';
       gameState.timeRemaining = gameState.hidingDuration;
+      updateFindPictureUI();
       gameState.isTimerPaused = false;
       gameState.seekerQuestionsUsed = 0;
       gameState.seekerPingsUsed = 0;
@@ -902,6 +944,7 @@
           if (gameState.currentPhase === 'HIDING') {
             gameState.currentPhase = 'SEEKING';
             gameState.timeRemaining = gameState.seekingDuration;
+            updateFindPictureUI();
 
             if (gameState.connection) {
               gameState.connection.send({
@@ -1091,7 +1134,7 @@
     }
 
     function openFoundModal() {
-      document.getElementById('foundModal').classList.remove('hidden');
+      alert('Scan your friend’s secret QR picture to finish the round!');
     }
 
     function closeFoundModal() {
@@ -1101,11 +1144,87 @@
     function confirmHiderFound() {
       closeFoundModal();
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') return;
-      if (gameState.connection) {
-        gameState.connection.send({ type: 'FOUND_TAG' });
+      alert('Use the camera scanner to scan the Hider’s picture.');
+    }
+
+    function updateFindPictureUI() {
+      const qrCard = document.getElementById('hiderQrCard');
+      if (!qrCard) return;
+      const ready = gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
+      qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready);
+      if (ready) {
+        const box = document.getElementById('qrCodeBox');
+        box.innerHTML = '';
+        if (window.QRCode) new QRCode(box, { text: 'HIDESEEK:' + gameState.roomCode + ':' + gameState.scanToken, width: 180, height: 180, colorDark: '#172554', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+        document.getElementById('hiderQrStatus').innerText = 'Show this picture to the Seeker. Keep your screen bright!';
       }
-      alert('🎯 TARGET TAGGED! Excellent operational success.');
-      location.reload();
+      if (gameState.role === 'SEEKER') {
+        const scanner = document.getElementById('startScanBtn');
+        if (scanner) scanner.disabled = !ready;
+        const status = document.getElementById('scanStatus');
+        if (status && !ready) status.innerText = 'The scanner unlocks when the finding round starts.';
+      }
+    }
+
+    async function startQrScanner() {
+      if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING' || !gameState.scanToken) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
+        document.getElementById('scanStatus').innerText = 'Camera scanning is not supported here. Open the game on HTTPS in Safari or Chrome.';
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        gameState.qrScannerStream = stream;
+        gameState.qrScannerActive = true;
+        const video = document.getElementById('scanVideo');
+        video.srcObject = stream;
+        video.classList.remove('hidden');
+        await video.play();
+        document.getElementById('startScanBtn').classList.add('hidden');
+        document.getElementById('stopScanBtn').classList.remove('hidden');
+        document.getElementById('scanStatus').innerText = 'Point your camera at the Hider’s picture!';
+        scanQrFrame();
+      } catch (err) {
+        document.getElementById('scanStatus').innerText = 'Camera permission was blocked. Allow camera access in your browser settings and try again.';
+      }
+    }
+
+    function scanQrFrame() {
+      if (!gameState.qrScannerActive) return;
+      const video = document.getElementById('scanVideo');
+      const canvas = document.getElementById('scanCanvas');
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' });
+        if (code && code.data === 'HIDESEEK:' + gameState.roomCode + ':' + gameState.scanToken) {
+          gameState.qrScannerActive = false;
+          stopQrScanner();
+          if (gameState.connection) gameState.connection.send({ type: 'FOUND_TAG', scanToken: gameState.scanToken });
+          AudioEngine.playTone(880, 'sine', .2);
+          alert('🎉 You found your friend! Great scanning!');
+          location.reload();
+          return;
+        }
+      }
+      gameState.qrScanFrame = requestAnimationFrame(scanQrFrame);
+    }
+
+    function stopQrScanner() {
+      gameState.qrScannerActive = false;
+      if (gameState.qrScanFrame) cancelAnimationFrame(gameState.qrScanFrame);
+      gameState.qrScanFrame = null;
+      if (gameState.qrScannerStream) gameState.qrScannerStream.getTracks().forEach(track => track.stop());
+      gameState.qrScannerStream = null;
+      const video = document.getElementById('scanVideo');
+      if (video) { video.pause(); video.srcObject = null; video.classList.add('hidden'); }
+      const start = document.getElementById('startScanBtn');
+      const stop = document.getElementById('stopScanBtn');
+      if (start) start.classList.remove('hidden');
+      if (stop) stop.classList.add('hidden');
     }
 
     // --- UTILITIES ---
