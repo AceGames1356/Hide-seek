@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tactical Hide & Seek</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PeerJS CDN for WebRTC connection without dedicated backend -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Font: Orbitron & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Orbitron', 'monospace'],
+          },
+          colors: {
+            radar: {
+              500: '#00ff66',
+              600: '#00cc52',
+              glow: 'rgba(0, 255, 102, 0.25)',
+            },
+            seeker: {
+              500: '#ff3366',
+              glow: 'rgba(255, 51, 102, 0.25)',
+            }
+          },
+          animation: {
+            'radar-sweep': 'sweep 4s linear infinite',
+            'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'pulse-fast': 'pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          },
+          keyframes: {
+            sweep: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .tactical-border {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.02);
+    }
+    .radar-grid {
+      background-image: 
+        radial-gradient(circle, rgba(0, 255, 102, 0.15) 1px, transparent 0),
+        linear-gradient(to right, rgba(0, 255, 102, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 102, 0.05) 1px, transparent 1px);
+      background-size: 20px 20px, 40px 40px, 40px 40px;
+      background-position: center center;
+    }
+    /* Hide scrollbars for cleaner UI */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans select-none overflow-x-hidden antialiased bg-slate-950 text-slate-100">
+
+  <!-- TOP HEADER / STATUS BAR -->
+  <header class="w-full bg-slate-900/80 backdrop-blur border-b border-slate-800 p-3 px-4 flex items-center justify-between z-20">
+    <div class="flex items-center space-x-2">
+      <i class="fa-solid fa-radar text-radar-500 text-xl animate-spin" style="animation-duration: 8s;"></i>
+      <span class="font-mono font-bold text-lg tracking-wider bg-gradient-to-r from-radar-500 to-emerald-400 bg-clip-text text-transparent">TAC-SEEK</span>
+    </div>
+
+    <!-- Connection Indicator -->
+    <div id="connectionStatus" class="flex items-center space-x-2 bg-slate-800/80 px-3 py-1 rounded-full text-xs font-mono border border-slate-700">
+      <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+      <span id="statusText" class="text-slate-300">DISCONNECTED</span>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-lg w-full mx-auto p-4 flex flex-col justify-between relative overflow-y-auto no-scrollbar">
+
+    <!-- VIEW 1: LOBBY / SETUP -->
+    <section id="viewLobby" class="flex-1 flex flex-col justify-center space-y-6 my-auto py-4">
+      <div class="text-center space-y-2">
+        <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Hide & Seek HQ</h1>
+        <p class="text-slate-400 text-sm">Connect devices locally via PeerJS for real-time tactical ops.</p>
+      </div>
+
+      <!-- Player Name Input -->
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3">
+        <label class="block text-xs font-mono text-slate-400 uppercase">Callsign / Name</label>
+        <input type="text" id="playerNameInput" value="Agent-1" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-radar-500 transition-colors">
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="bg-slate-900 p-1.5 rounded-xl border border-slate-800 flex font-mono text-sm">
+        <button id="tabHost" onclick="switchLobbyTab('host')" class="flex-1 py-2.5 rounded-lg font-semibold transition-all bg-radar-500 text-slate-950 shadow">CREATE ROOM</button>
+        <button id="tabJoin" onclick="switchLobbyTab('join')" class="flex-1 py-2.5 rounded-lg font-semibold text-slate-400 hover:text-slate-200 transition-all">JOIN ROOM</button>
+      </div>
+
+      <!-- HOST CARD -->
+      <div id="hostCard" class="bg-slate-900 p-5 rounded-xl tactical-border space-y-4">
+        <div class="space-y-1">
+          <label class="block text-xs font-mono text-slate-400 uppercase">Your Room Code</label>
+          <div class="flex items-center space-x-2">
+            <div id="generatedRoomCode" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 font-mono text-xl text-center font-bold tracking-widest text-radar-500">
+              ----
+            </div>
+            <button onclick="copyRoomCode()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 p-3 rounded-lg transition-colors" title="Copy Code">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Role Select -->
+        <div class="space-y-2">
+          <label class="block text-xs font-mono text-slate-400 uppercase">Your Host Role</label>
+          <div class="grid grid-cols-2 gap-3 font-mono text-xs">
+            <button id="roleBtnSeeker" onclick="selectHostRole('SEEKER')" class="p-3 rounded-lg border-2 border-seeker-500 bg-seeker-500/10 text-seeker-500 font-bold flex flex-col items-center space-y-1">
+              <i class="fa-solid fa-binoculars text-lg"></i>
+              <span>SEEKER</span>
+            </button>
+            <button id="roleBtnHider" onclick="selectHostRole('HIDER')" class="p-3 rounded-lg border-2 border-slate-800 bg-slate-950 text-slate-400 flex flex-col items-center space-y-1">
+              <i class="fa-solid fa-user-ninja text-lg"></i>
+              <span>HIDER</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Phase Duration Controls for Host -->
+        <div class="space-y-2">
+          <label class="block text-xs font-mono text-slate-400 uppercase">Operational Timers (Minutes)</label>
+          <div class="grid grid-cols-2 gap-3 font-mono text-xs">
+            <div>
+              <span class="text-[10px] text-slate-500 block mb-1">Hiding Time</span>
+              <select id="hideDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
+                <option value="30">30 Seconds</option>
+                <option value="60" selected>1 Minute</option>
+                <option value="120">2 Minutes</option>
+                <option value="180">3 Minutes</option>
+              </select>
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-500 block mb-1">Seeking Time</span>
+              <select id="seekDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
+                <option value="180">3 Minutes</option>
+                <option value="300" selected>5 Minutes</option>
+                <option value="600">10 Minutes</option>
+                <option value="900">15 Minutes</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="initializeHost()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-satellite-dish"></i>
+          <span>Initialize Room</span>
+        </button>
+      </div>
+
+      <!-- JOIN CARD -->
+      <div id="joinCard" class="bg-slate-900 p-5 rounded-xl tactical-border space-y-4 hidden">
+        <div class="space-y-1">
+          <label class="block text-xs font-mono text-slate-400 uppercase">Enter Room Code</label>
+          <input type="text" id="joinCodeInput" placeholder="e.g. 4821" maxlength="6" class="w-full bg-slate-950 border border-slate-700 rounded-lg py-3 px-4 font-mono text-xl text-center font-bold tracking-widest text-radar-500 focus:outline-none focus:border-radar-500 uppercase">
+        </div>
+
+        <button onclick="joinRoom()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-plug"></i>
+          <span>Connect to Host</span>
+        </button>
+      </div>
+
+      <!-- INSTRUCTIONS -->
+      <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-2">
+        <div class="font-mono font-bold text-slate-300 flex items-center space-x-2">
+          <i class="fa-solid fa-circle-info text-radar-500"></i>
+          <span>Tactical Setup Guide</span>
+        </div>
+        <p>1. Player A creates a room and shares the 4-digit room code.</p>
+        <p>2. Player B enters the code and joins. WebRTC handles direct peer-to-peer audio & data flow.</p>
+      </div>
+    </section>
+
+    <!-- VIEW 2: LOBBY WAITING ROOM -->
+    <section id="viewWaiting" class="flex-1 flex flex-col justify-center space-y-6 hidden my-auto py-4">
+      <div class="bg-slate-900 p-6 rounded-xl tactical-border text-center space-y-4">
+        <div class="relative w-20 h-20 mx-auto">
+          <div class="absolute inset-0 rounded-full border-2 border-radar-500/30 animate-ping"></div>
+          <div class="relative w-20 h-20 rounded-full bg-slate-950 border-2 border-radar-500 flex items-center justify-center">
+            <i class="fa-solid fa-wifi text-radar-500 text-2xl animate-pulse"></i>
+          </div>
+        </div>
+        <div>
+          <h2 id="waitingTitle" class="text-xl font-mono font-bold text-slate-100">Waiting for Opponent...</h2>
+          <p id="waitingSubtitle" class="text-xs text-slate-400 mt-1">Share room code <span id="waitingCodeDisplay" class="font-mono text-radar-500 font-bold"></span> with your player.</p>
+        </div>
+
+        <div id="connectedPeerBadge" class="hidden bg-slate-950 border border-radar-500/50 p-3 rounded-lg text-sm font-mono text-slate-300 flex items-center justify-between">
+          <span class="text-xs text-slate-400">CONNECTED WITH:</span>
+          <span id="connectedPeerName" class="font-bold text-radar-500">Agent-2</span>
+        </div>
+
+        <button id="startGameBtn" onclick="sendStartGameSignal()" class="w-full bg-radar-500 text-slate-950 font-mono font-bold py-3 rounded-lg opacity-50 cursor-not-allowed transition-all uppercase tracking-wider" disabled>
+          Start Operational Phase
+        </button>
+      </div>
+    </section>
+
+    <!-- VIEW 3: SEEKER INTERFACE -->
+    <section id="viewSeeker" class="flex-1 flex flex-col space-y-4 hidden pb-4">
+      
+      <!-- Top Tactical Header & Synchronized Timer -->
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-seeker-500/10 border border-seeker-500 flex items-center justify-center text-seeker-500">
+              <i class="fa-solid fa-binoculars text-lg"></i>
+            </div>
+            <div>
+              <div class="text-xs font-mono text-slate-400">OPERATIVE ROLE</div>
+              <div class="text-sm font-mono font-bold text-seeker-500">SEEKER</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div id="seekerPhaseBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase tracking-wider">HIDING PHASE</div>
+            <div id="seekerTimer" class="text-2xl font-mono font-bold text-slate-100">01:00</div>
+          </div>
+        </div>
+
+        <!-- Host Quick Controls Bar -->
+        <div id="seekerHostControls" class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono hidden">
+          <span class="text-[10px] text-slate-500 uppercase">HOST COMMANDS</span>
+          <div class="flex space-x-2">
+            <button onclick="toggleTimerPause()" id="pauseBtnSeeker" class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-2.5 py-1 rounded border border-slate-700 flex items-center space-x-1">
+              <i class="fa-solid fa-pause"></i> <span id="pauseBtnTextSeeker">PAUSE</span>
+            </button>
+            <button onclick="resetOperationTimer()" class="bg-slate-800 hover:bg-slate-700 text-rose-400 px-2.5 py-1 rounded border border-slate-700 flex items-center space-x-1">
+              <i class="fa-solid fa-rotate-left"></i> <span>RESET</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Tactical Radar Grid -->
+      <div class="relative w-full aspect-square max-h-[260px] bg-slate-950 rounded-2xl border border-radar-500/30 overflow-hidden radar-grid flex items-center justify-center">
+        <!-- Radar Sweep Animation -->
+        <div class="absolute inset-0 origin-center animate-radar-sweep pointer-events-none">
+          <div class="w-1/2 h-1/2 bg-gradient-to-br from-radar-500/30 to-transparent rounded-tl-full"></div>
+        </div>
+        <!-- Concentric Rings -->
+        <div class="absolute w-3/4 h-3/4 rounded-full border border-radar-500/20 pointer-events-none"></div>
+        <div class="absolute w-1/2 h-1/2 rounded-full border border-radar-500/20 pointer-events-none"></div>
+        <div class="absolute w-1/4 h-1/4 rounded-full border border-radar-500/20 pointer-events-none"></div>
+        
+        <!-- Center Seeker Marker -->
+        <div class="z-10 w-4 h-4 bg-seeker-500 rounded-full border-2 border-slate-950 shadow-[0_0_10px_#ff3366] flex items-center justify-center">
+          <div class="w-1.5 h-1.5 bg-white rounded-full"></div>
+        </div>
+
+        <!-- Dynamic Signal Strength Feedback Display -->
+        <div id="radarSignalDisplay" class="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-800 backdrop-blur px-3 py-1.5 rounded-lg text-xs font-mono text-slate-300 flex items-center space-x-2">
+          <span class="text-slate-500">LAST SIGNAL:</span>
+          <span id="lastSignalText" class="font-bold text-radar-500">NO PING YET</span>
+        </div>
+      </div>
+
+      <!-- Action Panel: Questions & Distance Requests -->
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3 flex-1 flex flex-col justify-between">
+        <div class="space-y-2">
+          <div class="text-xs font-mono text-slate-400 uppercase flex justify-between items-center">
+            <span>Interrogate Hider</span>
+            <i class="fa-solid fa-headset text-radar-500"></i>
+          </div>
+
+          <!-- Quick Question Buttons -->
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <button onclick="sendQuestion('Are you upstairs or downstairs?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
+              📍 Floor level?
+            </button>
+            <button onclick="sendQuestion('Are you touching metal or wood?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
+              🪵 Surface type?
+            </button>
+            <button onclick="sendQuestion('Are you near a water source?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
+              💧 Near water?
+            </button>
+            <button onclick="sendQuestion('Give me a sound hint!')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
+              🔊 Sound hint?
+            </button>
+          </div>
+
+          <!-- Custom Question Box -->
+          <div class="flex space-x-2 pt-1">
+            <input type="text" id="customQuestionInput" placeholder="Type custom query..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-radar-500">
+            <button onclick="sendCustomQuestion()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg font-mono text-xs border border-slate-700">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Proximity Request & Found Buttons -->
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button onclick="requestProximityPing()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
+            <i class="fa-solid fa-satellite text-radar-500"></i>
+            <span>PING HOT/COLD</span>
+          </button>
+          <button onclick="openFoundModal()" class="bg-seeker-500 hover:bg-red-600 text-white font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 shadow-lg shadow-seeker-500/20 transition-all">
+            <i class="fa-solid fa-crosshairs"></i>
+            <span>FOUND HIDER!</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: HIDER INTERFACE -->
+    <section id="viewHider" class="flex-1 flex flex-col space-y-4 hidden pb-4">
+      
+      <!-- Top Tactical Header & Synchronized Timer -->
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-radar-500/10 border border-radar-500 flex items-center justify-center text-radar-500">
+              <i class="fa-solid fa-user-ninja text-lg"></i>
+            </div>
+            <div>
+              <div class="text-xs font-mono text-slate-400">OPERATIVE ROLE</div>
+              <div class="text-sm font-mono font-bold text-radar-500">HIDER</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div id="hiderPhaseBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase tracking-wider">HIDING PHASE</div>
+            <div id="hiderTimer" class="text-2xl font-mono font-bold text-slate-100">01:00</div>
+          </div>
+        </div>
+
+        <!-- Host Quick Controls Bar (If Hider is Host) -->
+        <div id="hiderHostControls" class="pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-mono hidden">
+          <span class="text-[10px] text-slate-500 uppercase">HOST COMMANDS</span>
+          <div class="flex space-x-2">
+            <button onclick="toggleTimerPause()" id="pauseBtnHider" class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-2.5 py-1 rounded border border-slate-700 flex items-center space-x-1">
+              <i class="fa-solid fa-pause"></i> <span id="pauseBtnTextHider">PAUSE</span>
+            </button>
+            <button onclick="resetOperationTimer()" class="bg-slate-800 hover:bg-slate-700 text-rose-400 px-2.5 py-1 rounded border border-slate-700 flex items-center space-x-1">
+              <i class="fa-solid fa-rotate-left"></i> <span>RESET</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- INCOMING QUESTION CARD / PROMPT AREA -->
+      <div id="hiderPromptCard" class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3 flex-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-2">
+            <span>INCOMING TRANSMISSION</span>
+            <span id="hiderAlertBadge" class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">STANDBY</span>
+          </div>
+
+          <!-- Question Box Display -->
+          <div id="hiderQuestionDisplay" class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center text-sm font-mono text-slate-300 min-h-[90px] flex items-center justify-center">
+            Waiting for Seeker to broadcast a query or ping request...
+          </div>
+        </div>
+
+        <!-- Quick Response Grid -->
+        <div class="space-y-2">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">Quick Transmit Answers</div>
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <button onclick="sendHiderAnswer('YES')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-emerald-400 py-3 rounded-lg font-bold">YES</button>
+            <button onclick="sendHiderAnswer('NO')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-rose-400 py-3 rounded-lg font-bold">NO</button>
+            <button onclick="sendHiderAnswer('UPSTAIRS')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-sky-400 py-2.5 rounded-lg">UPSTAIRS</button>
+            <button onclick="sendHiderAnswer('DOWNSTAIRS')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-amber-400 py-2.5 rounded-lg">DOWNSTAIRS</button>
+          </div>
+        </div>
+
+        <!-- Hot/Cold Proximity Quick Answers -->
+        <div class="space-y-2 pt-1">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">Proximity Rating (Hot or Cold)</div>
+          <div class="grid grid-cols-3 gap-2 text-xs font-mono">
+            <button onclick="sendHiderAnswer('COLD ❄️')" class="bg-slate-950 hover:bg-blue-950/40 border border-blue-900/50 text-blue-400 py-2.5 rounded-lg font-bold">COLD</button>
+            <button onclick="sendHiderAnswer('WARM 🌤️')" class="bg-slate-950 hover:bg-amber-950/40 border border-amber-900/50 text-amber-400 py-2.5 rounded-lg font-bold">WARM</button>
+            <button onclick="sendHiderAnswer('HOT 🔥')" class="bg-slate-950 hover:bg-rose-950/40 border border-rose-900/50 text-rose-500 py-2.5 rounded-lg font-bold">HOT</button>
+          </div>
+        </div>
+
+        <!-- Tactical Decoy Sound & Stealth Controls -->
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button onclick="triggerDecoySound()" class="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
+            <i class="fa-solid fa-volume-high"></i>
+            <span>DECOY SOUND</span>
+          </button>
+          <button onclick="toggleStealthMode()" class="bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
+            <i class="fa-solid fa-eye-slash"></i>
+            <span>STEALTH MODE</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE GAME EVENT LOG (ALWAYS VISIBLE AT BOTTOM WHEN IN GAME) -->
+    <footer id="gameLogSection" class="bg-slate-900/90 rounded-xl p-3 border border-slate-800 text-xs font-mono space-y-1.5 mt-3 hidden">
+      <div class="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-800/80 pb-1">
+        <span class="flex items-center space-x-1">
+          <i class="fa-solid fa-list-ul text-radar-500"></i>
+          <span>LIVE COMMS LOG</span>
+        </span>
+        <span id="clearLogBtn" onclick="clearLog()" class="hover:text-slate-200 cursor-pointer">CLEAR</span>
+      </div>
+      <div id="logContent" class="h-20 overflow-y-auto space-y-1 text-[11px] no-scrollbar flex flex-col-reverse">
+        <!-- Log entries prepend here -->
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- STEALTH MODE OVERLAY FOR HIDER (PITCH BLACK SCREEN FOR DARK HIDING) -->
+  <div id="stealthOverlay" class="fixed inset-0 bg-black z-50 hidden flex flex-col justify-between p-6 cursor-pointer" onclick="toggleStealthMode()">
+    <div class="text-right">
+      <span class="text-[10px] font-mono text-zinc-800 uppercase border border-zinc-900 px-2 py-1 rounded">STEALTH ACTIVE - TAP TO REVEAL</span>
+    </div>
+    <div class="text-center space-y-2 pointer-events-none">
+      <i class="fa-solid fa-user-ninja text-zinc-900 text-4xl"></i>
+      <p class="text-xs font-mono text-zinc-800">Screen Darkened for Concealment</p>
+    </div>
+    <div></div>
+  </div>
+
+  <!-- CONFIRM FOUND MODAL -->
+  <div id="foundModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-xs w-full text-center space-y-4 shadow-2xl">
+      <div class="w-12 h-12 bg-seeker-500/10 border border-seeker-500 text-seeker-500 rounded-full flex items-center justify-center mx-auto text-xl">
+        <i class="fa-solid fa-bullseye"></i>
+      </div>
+      <div>
+        <h3 class="font-mono font-bold text-slate-100 text-lg">Tag Hider?</h3>
+        <p class="text-xs text-slate-400 mt-1">Has the Seeker successfully located the target visually in real life?</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 pt-2 font-mono text-xs">
+        <button onclick="closeFoundModal()" class="bg-slate-800 text-slate-300 py-2.5 rounded-lg border border-slate-700">CANCEL</button>
+        <button onclick="confirmHiderFound()" class="bg-seeker-500 text-white font-bold py-2.5 rounded-lg shadow-lg shadow-seeker-500/20">CONFIRM TAG</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT GAME ENGINE & PEERJS WEBRTC LOGIC -->
+  <script>
+    // --- AUDIO SYNTHESIZER (WEB AUDIO API) ---
+    const AudioEngine = {
+      ctx: null,
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      },
+      playTone(freq, type = 'sine', duration = 0.15) {
+        this.init();
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) { console.error(e); }
+      },
+      playRadarPing() {
+        this.playTone(880, 'sine', 0.2);
+        setTimeout(() => this.playTone(1760, 'sine', 0.3), 100);
+      },
+      playQuestionAlert() {
+        this.playTone(523.25, 'triangle', 0.15);
+        setTimeout(() => this.playTone(659.25, 'triangle', 0.15), 150);
+        setTimeout(() => this.playTone(783.99, 'triangle', 0.25), 300);
+      },
+      playPhaseAlert() {
+        this.playTone(440, 'sawtooth', 0.2);
+        setTimeout(() => this.playTone(587.33, 'sawtooth', 0.2), 200);
+        setTimeout(() => this.playTone(880, 'sawtooth', 0.4), 400);
+      },
+      playDecoySound() {
+        this.init();
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.3);
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.35);
+        } catch (e) { console.error(e); }
+      }
+    };
+
+    // --- STATE MANAGEMENT ---
+    let gameState = {
+      peer: null,
+      connection: null,
+      isHost: false,
+      role: 'SEEKER', // SEEKER or HIDER
+      roomCode: '',
+      playerName: 'Agent-1',
+      peerName: 'Opponent',
+      
+      // Synchronized Timer State
+      hidingDuration: 60,
+      seekingDuration: 300,
+      currentPhase: 'HIDING', // 'HIDING' or 'SEEKING'
+      timeRemaining: 60,
+      isTimerPaused: false,
+      timerInterval: null,
+    };
+
+    // Initialize random 4-digit ID generator
+    function generateCode() {
+      return Math.floor(1000 + Math.random() * 9000).toString();
+    }
+
+    // --- UI VIEW SWITCHING ---
+    function showView(viewId) {
+      ['viewLobby', 'viewWaiting', 'viewSeeker', 'viewHider'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(viewId).classList.remove('hidden');
+
+      if (viewId === 'viewSeeker' || viewId === 'viewHider') {
+        document.getElementById('gameLogSection').classList.remove('hidden');
+      } else {
+        document.getElementById('gameLogSection').classList.add('hidden');
+      }
+    }
+
+    function switchLobbyTab(tab) {
+      if (tab === 'host') {
+        document.getElementById('tabHost').className = 'flex-1 py-2.5 rounded-lg font-semibold transition-all bg-radar-500 text-slate-950 shadow';
+        document.getElementById('tabJoin').className = 'flex-1 py-2.5 rounded-lg font-semibold text-slate-400 hover:text-slate-200 transition-all';
+        document.getElementById('hostCard').classList.remove('hidden');
+        document.getElementById('joinCard').classList.add('hidden');
+      } else {
+        document.getElementById('tabJoin').className = 'flex-1 py-2.5 rounded-lg font-semibold transition-all bg-radar-500 text-slate-950 shadow';
+        document.getElementById('tabHost').className = 'flex-1 py-2.5 rounded-lg font-semibold text-slate-400 hover:text-slate-200 transition-all';
+        document.getElementById('joinCard').classList.remove('hidden');
+        document.getElementById('hostCard').classList.add('hidden');
+      }
+    }
+
+    function selectHostRole(role) {
+      gameState.role = role;
+      const seekerBtn = document.getElementById('roleBtnSeeker');
+      const hiderBtn = document.getElementById('roleBtnHider');
+
+      if (role === 'SEEKER') {
+        seekerBtn.className = 'p-3 rounded-lg border-2 border-seeker-500 bg-seeker-500/10 text-seeker-500 font-bold flex flex-col items-center space-y-1';
+        hiderBtn.className = 'p-3 rounded-lg border-2 border-slate-800 bg-slate-950 text-slate-400 flex flex-col items-center space-y-1';
+      } else {
+        hiderBtn.className = 'p-3 rounded-lg border-2 border-radar-500 bg-radar-500/10 text-radar-500 font-bold flex flex-col items-center space-y-1';
+        seekerBtn.className = 'p-3 rounded-lg border-2 border-slate-800 bg-slate-950 text-slate-400 flex flex-col items-center space-y-1';
+      }
+    }
+
+    function updateStatus(text, colorClass) {
+      document.getElementById('statusText').innerText = text;
+      document.getElementById('statusDot').className = `w-2 h-2 rounded-full ${colorClass}`;
+    }
+
+    // --- PEERJS WEBRTC NETWORKING ---
+    function initializeHost() {
+      gameState.isHost = true;
+      gameState.roomCode = generateCode();
+      gameState.playerName = document.getElementById('playerNameInput').value || 'Host-Agent';
+      gameState.hidingDuration = parseInt(document.getElementById('hideDurationSelect').value) || 60;
+      gameState.seekingDuration = parseInt(document.getElementById('seekDurationSelect').value) || 300;
+      
+      document.getElementById('generatedRoomCode').innerText = gameState.roomCode;
+      document.getElementById('waitingCodeDisplay').innerText = gameState.roomCode;
+
+      const peerId = 'tac-seek-' + gameState.roomCode;
+      gameState.peer = new Peer(peerId);
+
+      gameState.peer.on('open', (id) => {
+        updateStatus('HOSTING ROOM', 'bg-emerald-500 animate-pulse');
+        showView('viewWaiting');
+        logEvent('System initialized. Waiting for opponent connection...');
+      });
+
+      gameState.peer.on('connection', (conn) => {
+        gameState.connection = conn;
+        setupConnectionHandlers();
+      });
+
+      gameState.peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        alert('Room setup error or code collision. Retrying...');
+        initializeHost();
+      });
+    }
+
+    function joinRoom() {
+      const inputCode = document.getElementById('joinCodeInput').value.trim();
+      if (!inputCode) return alert('Please enter a 4-digit Room Code!');
+
+      gameState.isHost = false;
+      gameState.roomCode = inputCode;
+      gameState.playerName = document.getElementById('playerNameInput').value || 'Join-Agent';
+
+      gameState.peer = new Peer();
+
+      gameState.peer.on('open', () => {
+        updateStatus('CONNECTING...', 'bg-amber-500 animate-pulse');
+        const hostPeerId = 'tac-seek-' + gameState.roomCode;
+        gameState.connection = gameState.peer.connect(hostPeerId, {
+          metadata: { name: gameState.playerName }
+        });
+        setupConnectionHandlers();
+      });
+
+      gameState.peer.on('error', (err) => {
+        console.error('Peer join error:', err);
+        alert('Could not find room with code: ' + inputCode);
+        updateStatus('DISCONNECTED', 'bg-rose-500');
+      });
+    }
+
+    function setupConnectionHandlers() {
+      const conn = gameState.connection;
+
+      conn.on('open', () => {
+        updateStatus('ONLINE', 'bg-emerald-500');
+        
+        conn.send({
+          type: 'HANDSHAKE',
+          name: gameState.playerName,
+          role: gameState.role,
+          hidingDuration: gameState.hidingDuration,
+          seekingDuration: gameState.seekingDuration,
+        });
+
+        if (gameState.isHost) {
+          document.getElementById('startGameBtn').disabled = false;
+          document.getElementById('startGameBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+          document.getElementById('connectedPeerBadge').classList.remove('hidden');
+        } else {
+          showView('viewWaiting');
+          document.getElementById('waitingTitle').innerText = 'Connected to Host!';
+          document.getElementById('waitingSubtitle').innerText = 'Awaiting Host to start tactical phase...';
+        }
+      });
+
+      conn.on('data', (data) => {
+        handleIncomingData(data);
+      });
+
+      conn.on('close', () => {
+        updateStatus('DISCONNECTED', 'bg-rose-500');
+        alert('Opponent disconnected!');
+        location.reload();
+      });
+    }
+
+    // --- GAME PROTOCOL DATA HANDLER ---
+    function handleIncomingData(data) {
+      console.log('Received packet:', data);
+
+      switch (data.type) {
+        case 'HANDSHAKE':
+          gameState.peerName = data.name;
+          if (!gameState.isHost) {
+            gameState.role = (data.role === 'SEEKER') ? 'HIDER' : 'SEEKER';
+            gameState.hidingDuration = data.hidingDuration || 60;
+            gameState.seekingDuration = data.seekingDuration || 300;
+          }
+          document.getElementById('connectedPeerName').innerText = gameState.peerName;
+          logEvent(`Operative connected: ${gameState.peerName}`);
+          break;
+
+        case 'START_GAME':
+          gameState.hidingDuration = data.hidingDuration;
+          gameState.seekingDuration = data.seekingDuration;
+          startGamePhase();
+          break;
+
+        case 'TIMER_SYNC':
+          gameState.timeRemaining = data.timeRemaining;
+          gameState.currentPhase = data.currentPhase;
+          gameState.isTimerPaused = data.isPaused;
+          renderTimerUI();
+          break;
+
+        case 'PHASE_CHANGE':
+          gameState.currentPhase = data.newPhase;
+          gameState.timeRemaining = data.timeRemaining;
+          AudioEngine.playPhaseAlert();
+          logEvent(`🚨 PHASE CHANGED TO: ${data.newPhase} PHASE!`);
+          renderTimerUI();
+          break;
+
+        case 'QUESTION':
+          AudioEngine.playQuestionAlert();
+          if (gameState.role === 'HIDER') {
+            document.getElementById('hiderQuestionDisplay').innerHTML = `
+              <div class="text-rose-400 font-bold mb-1"><i class="fa-solid fa-circle-question"></i> QUESTION FROM SEEKER:</div>
+              <div class="text-slate-100 font-semibold">${data.text}</div>
+            `;
+            document.getElementById('hiderAlertBadge').className = 'bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded text-[10px] animate-pulse';
+            document.getElementById('hiderAlertBadge').innerText = 'ACTION REQUIRED';
+          }
+          logEvent(`Seeker asked: "${data.text}"`);
+          break;
+
+        case 'ANSWER':
+          AudioEngine.playTone(600, 'sine', 0.2);
+          if (gameState.role === 'SEEKER') {
+            document.getElementById('lastSignalText').innerText = `ANSWER: ${data.text}`;
+          }
+          logEvent(`Hider responded: "${data.text}"`);
+          break;
+
+        case 'PROXIMITY_REQUEST':
+          AudioEngine.playRadarPing();
+          if (gameState.role === 'HIDER') {
+            document.getElementById('hiderQuestionDisplay').innerHTML = `
+              <div class="text-radar-500 font-bold mb-1"><i class="fa-solid fa-satellite-dish"></i> PROXIMITY PING REQUEST</div>
+              <div class="text-slate-100">Seeker is requesting a Hot or Cold rating!</div>
+            `;
+          }
+          logEvent('Seeker sent a Hot/Cold proximity ping request.');
+          break;
+
+        case 'DECOY_TRIGGERED':
+          AudioEngine.playDecoySound();
+          logEvent(`⚠️ DECOY SOUND PLAYED BY HIDER!`);
+          break;
+
+        case 'FOUND_TAG':
+          AudioEngine.playTone(1000, 'square', 0.5);
+          alert(`🎉 GAME OVER! Seeker (${gameState.peerName}) tagged the Hider!`);
+          location.reload();
+          break;
+      }
+    }
+
+    // --- GAMEPLAY & SYNCHRONIZED TIMER ENGINE ---
+    function sendStartGameSignal() {
+      if (gameState.connection) {
+        gameState.connection.send({
+          type: 'START_GAME',
+          hidingDuration: gameState.hidingDuration,
+          seekingDuration: gameState.seekingDuration
+        });
+        startGamePhase();
+      }
+    }
+
+    function startGamePhase() {
+      if (gameState.role === 'SEEKER') {
+        showView('viewSeeker');
+      } else {
+        showView('viewHider');
+      }
+
+      // Display Host Controls if current player is host
+      if (gameState.isHost) {
+        if (gameState.role === 'SEEKER') {
+          document.getElementById('seekerHostControls').classList.remove('hidden');
+        } else {
+          document.getElementById('hiderHostControls').classList.remove('hidden');
+        }
+      }
+
+      gameState.currentPhase = 'HIDING';
+      gameState.timeRemaining = gameState.hidingDuration;
+      gameState.isTimerPaused = false;
+
+      AudioEngine.playPhaseAlert();
+      logEvent(`Operational Phase Started. Phase: HIDING (${gameState.hidingDuration}s)`);
+
+      if (gameState.isHost) {
+        startHostMasterTimer();
+      }
+    }
+
+    function startHostMasterTimer() {
+      clearInterval(gameState.timerInterval);
+
+      gameState.timerInterval = setInterval(() => {
+        if (gameState.isTimerPaused) return;
+
+        gameState.timeRemaining--;
+
+        // Sync packet to Client
+        if (gameState.connection) {
+          gameState.connection.send({
+            type: 'TIMER_SYNC',
+            timeRemaining: gameState.timeRemaining,
+            currentPhase: gameState.currentPhase,
+            isPaused: gameState.isTimerPaused
+          });
+        }
+
+        renderTimerUI();
+
+        // Phase Transition Logic
+        if (gameState.timeRemaining <= 0) {
+          if (gameState.currentPhase === 'HIDING') {
+            gameState.currentPhase = 'SEEKING';
+            gameState.timeRemaining = gameState.seekingDuration;
+
+            if (gameState.connection) {
+              gameState.connection.send({
+                type: 'PHASE_CHANGE',
+                newPhase: 'SEEKING',
+                timeRemaining: gameState.seekingDuration
+              });
+            }
+            AudioEngine.playPhaseAlert();
+            logEvent('⏰ HIDING TIME EXPIRED! SEEKING PHASE HAS BEGUN!');
+            renderTimerUI();
+          } else {
+            clearInterval(gameState.timerInterval);
+            AudioEngine.playTone(300, 'sawtooth', 0.8);
+            logEvent('⌛ TIME EXPIRED! Hiders win the match!');
+            alert('⌛ TIME EXPIRED! Hiders successfully evaded the Seeker!');
+          }
+        }
+      }, 1000);
+    }
+
+    function toggleTimerPause() {
+      if (!gameState.isHost) return;
+      gameState.isTimerPaused = !gameState.isTimerPaused;
+
+      const seekerBtnText = document.getElementById('pauseBtnTextSeeker');
+      const hiderBtnText = document.getElementById('pauseBtnTextHider');
+      const pauseText = gameState.isTimerPaused ? 'RESUME' : 'PAUSE';
+
+      if (seekerBtnText) seekerBtnText.innerText = pauseText;
+      if (hiderBtnText) hiderBtnText.innerText = pauseText;
+
+      logEvent(`Timer ${gameState.isTimerPaused ? 'PAUSED' : 'RESUMED'} by Host.`);
+
+      if (gameState.connection) {
+        gameState.connection.send({
+          type: 'TIMER_SYNC',
+          timeRemaining: gameState.timeRemaining,
+          currentPhase: gameState.currentPhase,
+          isPaused: gameState.isTimerPaused
+        });
+      }
+      renderTimerUI();
+    }
+
+    function resetOperationTimer() {
+      if (!gameState.isHost) return;
+      gameState.currentPhase = 'HIDING';
+      gameState.timeRemaining = gameState.hidingDuration;
+      gameState.isTimerPaused = false;
+
+      logEvent('Operation timer RESET by Host.');
+
+      if (gameState.connection) {
+        gameState.connection.send({
+          type: 'PHASE_CHANGE',
+          newPhase: 'HIDING',
+          timeRemaining: gameState.hidingDuration
+        });
+      }
+      renderTimerUI();
+    }
+
+    function renderTimerUI() {
+      const mins = Math.floor(gameState.timeRemaining / 60).toString().padStart(2, '0');
+      const secs = (gameState.timeRemaining % 60).toString().padStart(2, '0');
+      const formatted = `${mins}:${secs}${gameState.isTimerPaused ? ' (PAUSED)' : ''}`;
+
+      const isHiding = gameState.currentPhase === 'HIDING';
+      const badgeText = isHiding ? 'HIDING PHASE' : 'SEEKING PHASE';
+      const badgeClass = isHiding 
+        ? 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase tracking-wider'
+        : 'text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold uppercase tracking-wider animate-pulse';
+
+      // Update Seeker View
+      const seekerTimer = document.getElementById('seekerTimer');
+      const seekerBadge = document.getElementById('seekerPhaseBadge');
+      if (seekerTimer) seekerTimer.innerText = formatted;
+      if (seekerBadge) {
+        seekerBadge.innerText = badgeText;
+        seekerBadge.className = badgeClass;
+      }
+
+      // Update Hider View
+      const hiderTimer = document.getElementById('hiderTimer');
+      const hiderBadge = document.getElementById('hiderPhaseBadge');
+      if (hiderTimer) hiderTimer.innerText = formatted;
+      if (hiderBadge) {
+        hiderBadge.innerText = badgeText;
+        hiderBadge.className = badgeClass;
+      }
+    }
+
+    // --- OTHER ACTIONS ---
+    function sendQuestion(text) {
+      if (!gameState.connection) return;
+      gameState.connection.send({ type: 'QUESTION', text: text });
+      logEvent(`You asked: "${text}"`);
+    }
+
+    function sendCustomQuestion() {
+      const input = document.getElementById('customQuestionInput');
+      const val = input.value.trim();
+      if (val) {
+        sendQuestion(val);
+        input.value = '';
+      }
+    }
+
+    function sendHiderAnswer(ansText) {
+      if (!gameState.connection) return;
+      gameState.connection.send({ type: 'ANSWER', text: ansText });
+      logEvent(`You transmitted answer: "${ansText}"`);
+      
+      document.getElementById('hiderAlertBadge').className = 'bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]';
+      document.getElementById('hiderAlertBadge').innerText = 'SENT';
+    }
+
+    function requestProximityPing() {
+      if (!gameState.connection) return;
+      AudioEngine.playRadarPing();
+      gameState.connection.send({ type: 'PROXIMITY_REQUEST' });
+      document.getElementById('lastSignalText').innerText = 'PING SENT...';
+      logEvent('Requested proximity Hot/Cold signal from Hider.');
+    }
+
+    function triggerDecoySound() {
+      AudioEngine.playDecoySound();
+      if (gameState.connection) {
+        gameState.connection.send({ type: 'DECOY_TRIGGERED' });
+      }
+      logEvent('Triggered decoy sound effect!');
+    }
+
+    function toggleStealthMode() {
+      const overlay = document.getElementById('stealthOverlay');
+      overlay.classList.toggle('hidden');
+    }
+
+    function openFoundModal() {
+      document.getElementById('foundModal').classList.remove('hidden');
+    }
+
+    function closeFoundModal() {
+      document.getElementById('foundModal').classList.add('hidden');
+    }
+
+    function confirmHiderFound() {
+      closeFoundModal();
+      if (gameState.connection) {
+        gameState.connection.send({ type: 'FOUND_TAG' });
+      }
+      alert('🎯 TARGET TAGGED! Excellent operational success.');
+      location.reload();
+    }
+
+    // --- UTILITIES ---
+    function copyRoomCode() {
+      const code = gameState.roomCode || document.getElementById('generatedRoomCode').innerText;
+      if (code && code !== '----') {
+        const tempInput = document.createElement('input');
+        tempInput.value = code;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        alert(`Room Code ${code} copied to clipboard!`);
+      }
+    }
+
+    function logEvent(msg) {
+      const logContent = document.getElementById('logContent');
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const entry = document.createElement('div');
+      entry.className = 'text-slate-300';
+      entry.innerHTML = `<span class="text-slate-500">[${time}]</span> ${msg}`;
+      logContent.prepend(entry);
+    }
+
+    function clearLog() {
+      document.getElementById('logContent').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
