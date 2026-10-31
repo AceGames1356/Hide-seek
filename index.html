@@ -527,24 +527,16 @@
       <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3 flex-1 flex flex-col justify-between">
         <div class="space-y-2">
           <div class="text-xs font-mono text-slate-400 uppercase flex justify-between items-center">
-            <span>ASK A QUESTION</span>
+            <span>QUESTION CARDS · PICK ONE</span>
             <i class="fa-solid fa-headset text-radar-500"></i>
           </div>
 
-          <!-- Quick Question Buttons -->
+          <!-- Quick Question Cards -->
           <div class="grid grid-cols-2 gap-2 text-xs font-mono">
-            <button onclick="sendQuestion('Are you upstairs or downstairs?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
-              📍 Floor level?
-            </button>
-            <button onclick="sendQuestion('Are you touching metal or wood?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
-              🪵 Surface type?
-            </button>
-            <button onclick="sendQuestion('Are you near a water source?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
-              💧 Near water?
-            </button>
-            <button onclick="sendQuestion('Give me a sound hint!')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 p-2.5 rounded-lg text-left transition-colors truncate">
-              🔊 Sound hint?
-            </button>
+            <button onclick="sendQuestion('Are you inside or outside?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">🏠</span><b>Inside or outside?</b><span class="block text-[10px] text-slate-500 mt-1">Narrow down the setting</span></button>
+            <button onclick="sendQuestion('Are you near a road, path or entrance?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">🛣️</span><b>Nearby landmark</b><span class="block text-[10px] text-slate-500 mt-1">Road, path or entrance</span></button>
+            <button onclick="sendQuestion('Is the place you are hiding in mostly public or private?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">👥</span><b>Public or private?</b><span class="block text-[10px] text-slate-500 mt-1">Learn the area type</span></button>
+            <button onclick="sendQuestion('Can you see a building from where you are?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">👀</span><b>Visual clue</b><span class="block text-[10px] text-slate-500 mt-1">Spot something nearby</span></button>
           </div>
 
           <!-- Custom Question Box -->
