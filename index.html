@@ -1189,7 +1189,7 @@
             sourceConn.playerName=String(data.name||'Player').trim().slice(0,16)||'Player';
             const token = String(data.reconnectToken || '');
             let player = token ? gameState.players.find(p => p.reconnectToken === token) : null;
-            if (player && !player.connection) {
+            if (player) {
               player.connection = sourceConn;
               player.name = sourceConn.playerName;
               player.role = data.role === 'SEEKER' ? 'SEEKER' : 'HIDER';
