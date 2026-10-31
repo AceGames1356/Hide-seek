@@ -1052,6 +1052,10 @@
         connectToRoomHost();
       });
 
+      gameState.peer.on('disconnected', () => {
+        try { if (gameState.peer && !gameState.peer.destroyed) gameState.peer.reconnect(); } catch(e) {}
+      });
+
       gameState.peer.on('error', (err) => {
         console.error('Peer join error:', err);
         alert('Could not find room with code: ' + inputCode);
@@ -1085,6 +1089,10 @@
       });
       conn.on('close', () => {
         gameState.reconnecting = false;
+      });
+      conn.on('error', () => {
+        gameState.reconnecting = false;
+        updateStatus('RETRYING...', 'bg-amber-500 animate-pulse');
       });
     }
 
