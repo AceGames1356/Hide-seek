@@ -841,9 +841,28 @@
       });
 
       conn.on('close', () => {
-        updateStatus('DISCONNECTED', 'bg-rose-500');
-        alert('Opponent disconnected!');
-        location.reload();
+        if (gameState.isHost) {
+          // Remove only the player whose connection closed. Keep the room alive.
+          gameState.connections = gameState.connections.filter(c => c !== conn);
+          gameState.players = gameState.players.filter(p => p.connection !== conn);
+          if (gameState.connection === conn) gameState.connection = gameState.connections[0] || null;
+          updateRoomPlayers();
+          logEvent((conn.playerName || 'A player') + ' disconnected. The room is still active.');
+          if (!gameState.connections.length) {
+            const startButton = document.getElementById('startGameBtn');
+            if (startButton) {
+              startButton.disabled = true;
+              startButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+          }
+        } else {
+          // Only this device returns to the lobby if the host connection is lost.
+          updateStatus('DISCONNECTED', 'bg-rose-500');
+          alert('You disconnected from the host. Other players can keep playing.');
+          stopQrScanner();
+          clearInterval(gameState.timerInterval);
+          showView('viewLobby');
+        }
       });
     }
 
@@ -853,7 +872,7 @@
 
       switch (data.type) {
         case 'HANDSHAKE':
-          if (gameState.isHost) { gameState.players.push({name:String(data.name||'Player').slice(0,16),role:data.role==='SEEKER'?'SEEKER':'HIDER'}); updateRoomPlayers(); logEvent(data.name+' joined!'); }
+          if (gameState.isHost) { sourceConn.playerName=String(data.name||'Player').slice(0,16); gameState.players.push({name:sourceConn.playerName,role:data.role==='SEEKER'?'SEEKER':'HIDER',connection:sourceConn}); updateRoomPlayers(); logEvent(data.name+' joined!'); }
           else { gameState.peerName=data.name||'Host'; gameState.hidingDuration=data.hidingDuration||60; gameState.seekingDuration=data.seekingDuration||300; }
           break;
         case 'ROOM_FULL': alert('Room is full!'); location.reload(); break;
@@ -952,8 +971,8 @@
           if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING' || data.scanToken !== gameState.scanToken) break;
           stopQrScanner();
           AudioEngine.playTone(1000, 'sine', 0.35);
-          alert(`🎉 You were found! ${gameState.peerName} scanned your picture!`);
-          location.reload();
+          alert(`🎉 You were found! ${gameState.peerName} scanned your picture! The room will stay connected.`);
+          logEvent('A Hider was found. The room is still active.');
           break;
       }
     }
@@ -1386,8 +1405,8 @@
           stopQrScanner();
           if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: gameState.scanToken });
           AudioEngine.playTone(880, 'sine', .2);
-          alert('🎉 You found your friend! Great scanning!');
-          location.reload();
+          alert('🎉 You found your friend! Great scanning! The room will stay connected.');
+          logEvent('A Hider was found! Players can continue in the room.');
           return;
         }
       }
