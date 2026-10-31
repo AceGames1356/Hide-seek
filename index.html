@@ -172,60 +172,116 @@
     }
   </style>
 
-  <style id="easy-photo-and-no-scroll-layout">
-    /* One-screen game layout: fit controls to the device instead of making kids scroll. */
-    html, body { width:100%; height:100%; min-height:100%; overflow:hidden !important; }
-    body { min-height:100dvh; }
-    body > header { flex:0 0 auto; }
+  <style id="easy-photo-and-responsive-layout">
+    /* Let the full game UI remain reachable on short screens and small devices. */
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      height: auto;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+    }
+    body {
+      min-height: 100dvh;
+      height: auto !important;
+    }
+    body > header { flex: 0 0 auto; }
     main {
-      height:calc(100dvh - 62px) !important;
-      min-height:0 !important;
-      flex:1 1 auto !important;
-      overflow:hidden !important;
-      padding:10px !important;
-      gap:8px;
+      width: 100%;
+      height: auto !important;
+      min-height: calc(100dvh - 62px) !important;
+      flex: 1 0 auto !important;
+      overflow: visible !important;
+      overflow-y: visible !important;
+      padding: 12px !important;
+      gap: 12px;
     }
-    main > section { min-height:0; max-height:100%; }
-    #viewLobby, #viewWaiting, #viewTimeout { overflow:hidden; justify-content:center; gap:10px !important; padding:4px 0 !important; }
-    #viewLobby { gap:10px !important; }
-    #viewLobby > div:first-child { gap:3px !important; }
-    #viewLobby > div:first-child .text-5xl { font-size:2.1rem !important; }
-    #viewLobby > div:first-child h1 { font-size:1.75rem !important; }
-    #viewLobby > div:first-child p { font-size:.82rem !important; }
-    #viewLobby .tactical-border, #hostCard, #joinCard { padding:12px !important; gap:10px !important; }
-    #viewLobby button, #viewWaiting button { min-height:42px !important; }
-    #viewLobby .bg-slate-900\/50 { padding:10px !important; }
-    #viewLobby .bg-slate-900\/50 p { margin-top:2px; }
-    #viewWaiting > div { padding:14px !important; gap:10px !important; }
-    #viewWaiting .w-20 { width:52px !important; height:52px !important; }
-    #viewWaiting .w-20 i { font-size:1rem !important; }
-    #viewSeeker, #viewHider { min-height:0; gap:8px !important; padding-bottom:0 !important; overflow:hidden; }
-    #viewSeeker > div, #viewHider > div { flex-shrink:1; min-height:0; }
-    #viewSeeker .radar-grid { flex:0 1 180px; min-height:110px; max-height:180px !important; aspect-ratio:auto; }
-    #viewSeeker > div, #viewHider > div { padding:10px !important; }
-    #viewHider #hiderQrCard { padding:10px !important; gap:8px !important; }
-    #viewHider #qrCodeBox { width: min(100%, 150px); min-height:0; height:auto; aspect-ratio:1; }
-    #viewHider .qr-stage { padding:8px; }
-    #viewHider .qr-card-bottom, #viewHider .qr-footer { padding-top:6px; font-size:8px; }
-    #viewHider #hiderPromptCard { overflow:hidden; }
-    #gameLogSection { flex:0 0 auto; margin-top:4px !important; padding:7px !important; }
-    #gameLogSection #logContent { height:34px !important; }
-    #viewTimeout > div { padding:14px !important; gap:10px !important; }
-    #pictureRequestNotice { padding:10px !important; gap:8px !important; }
-    #pictureRequestNotice button { min-height:44px !important; }
-    @media (max-height:720px) {
-      main { padding:6px !important; }
-      #viewLobby > div:first-child .text-5xl { font-size:1.7rem !important; }
-      #viewLobby > div:first-child h1 { font-size:1.45rem !important; }
-      #viewLobby .tactical-border, #hostCard, #joinCard { padding:8px !important; gap:7px !important; }
-      #viewLobby .bg-slate-900\/50 { display:none !important; }
-      #viewSeeker .radar-grid { flex-basis:130px; max-height:130px !important; }
-      #viewHider #qrCodeBox { width:min(100%,120px); }
-      #gameLogSection #logContent { height:24px !important; }
+    main > section {
+      min-height: 0;
+      max-height: none !important;
+      flex: 0 0 auto;
     }
-    @media (max-width:380px) {
-      #viewLobby > div:first-child p { font-size:.75rem !important; }
-      #viewLobby .tactical-border, #hostCard, #joinCard { padding:9px !important; }
+    #viewLobby, #viewWaiting, #viewTimeout {
+      overflow: visible !important;
+      justify-content: flex-start;
+      gap: 14px !important;
+      padding: 8px 0 18px !important;
+    }
+    #viewLobby > div:first-child { gap: 5px !important; }
+    #viewLobby > div:first-child .text-5xl { font-size: clamp(1.8rem, 7vw, 2.4rem) !important; }
+    #viewLobby > div:first-child h1 { font-size: clamp(1.5rem, 6vw, 2rem) !important; }
+    #viewLobby > div:first-child p { font-size: .88rem !important; }
+    #viewLobby .tactical-border, #hostCard, #joinCard { padding: 14px !important; gap: 12px !important; }
+    #viewLobby button, #viewWaiting button { min-height: 44px !important; }
+    #viewLobby .bg-slate-900\\/50 { padding: 12px !important; }
+    #viewWaiting > div { padding: 16px !important; gap: 12px !important; }
+    #viewWaiting .w-20 { width: 56px !important; height: 56px !important; }
+    #viewWaiting .w-20 i { font-size: 1.1rem !important; }
+
+    #viewSeeker, #viewHider {
+      min-height: 0;
+      height: auto !important;
+      overflow: visible !important;
+      gap: 12px !important;
+      padding: 4px 0 22px !important;
+    }
+    #viewSeeker > div, #viewHider > div {
+      flex: 0 0 auto;
+      flex-shrink: 0;
+      min-height: 0;
+      overflow: visible;
+      padding: 12px !important;
+    }
+    #viewSeeker .radar-grid {
+      flex: 0 0 auto;
+      width: 100%;
+      height: clamp(150px, 42vw, 220px);
+      min-height: 150px;
+      max-height: 220px !important;
+      aspect-ratio: auto;
+    }
+    #hiderAnswerFeed {
+      flex: 0 0 auto;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    #viewSeeker .kid-card, #viewHider .kid-card { overflow: visible; }
+    #viewSeeker .bg-slate-900, #viewHider .bg-slate-900 { flex: 0 0 auto; }
+    #viewSeeker > div:last-child, #viewHider > div:last-child { margin-bottom: 4px; }
+    #viewHider #hiderQrCard { padding: 12px !important; gap: 10px !important; }
+    #viewHider #qrCodeBox {
+      width: min(100%, 210px);
+      min-height: 0;
+      height: auto;
+      aspect-ratio: 1;
+    }
+    #viewHider .qr-stage { padding: 10px; }
+    #viewHider .qr-card-bottom, #viewHider .qr-footer { padding-top: 8px; font-size: 9px; }
+    #viewHider #hiderPromptCard { overflow: visible !important; }
+    #gameLogSection {
+      flex: 0 0 auto;
+      margin: 8px 0 12px !important;
+      padding: 9px !important;
+    }
+    #gameLogSection #logContent {
+      height: auto !important;
+      max-height: 110px;
+      overflow-y: auto;
+    }
+    #viewTimeout > div { padding: 16px !important; gap: 12px !important; }
+    #pictureRequestNotice { padding: 12px !important; gap: 10px !important; }
+    #pictureRequestNotice button { min-height: 46px !important; }
+
+    @media (min-width: 700px) {
+      main { max-width: 680px !important; padding: 18px !important; }
+      #viewSeeker .radar-grid { height: 230px; max-height: 230px !important; }
+      #viewHider #qrCodeBox { width: min(100%, 230px); }
+    }
+    @media (max-width: 380px) {
+      main { padding: 9px !important; }
+      #viewLobby > div:first-child p { font-size: .8rem !important; }
+      #viewLobby .tactical-border, #hostCard, #joinCard { padding: 11px !important; }
+      #viewSeeker > div, #viewHider > div { padding: 10px !important; }
     }
   </style>
 
