@@ -532,7 +532,7 @@
     <!-- VIEW 1: LOBBY / SETUP -->
     <section id="viewLobby" class="flex-1 flex flex-col justify-center space-y-6 my-auto py-4">
       <div class="text-center space-y-2">
-        <div class="text-5xl">🕵️‍♀️🎉</div>
+        <div class="text-5xl text-radar-400"><i class="fa-solid fa-user-secret"></i></div>
         <h1 class="text-3xl font-mono font-bold text-slate-100 uppercase tracking-wide">Hide & Seek Party!</h1>
         <p class="text-slate-400 text-sm">Pick a role, hide somewhere safe, and have fun with a friend!</p>
       </div>
@@ -711,12 +711,12 @@
 
           <!-- Quick Question Cards -->
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-            <button onclick="sendQuestion('Are you indoors or outdoors?')" class="hunt-question"><span>🏠</span><b>Inside or outside?</b><small>Environment</small></button>
-            <button onclick="sendQuestion('Are you closer to a road, path, or entrance?')" class="hunt-question"><span>🛣️</span><b>Nearby route?</b><small>Roads and paths</small></button>
-            <button onclick="sendQuestion('Is your hiding place public or private?')" class="hunt-question"><span>👥</span><b>Public or private?</b><small>Area type</small></button>
-            <button onclick="sendQuestion('Can you see a building from your hiding spot?')" class="hunt-question"><span>🏢</span><b>Can you see a building?</b><small>Visual clue</small></button>
-            <button onclick="sendQuestion('Are you near something people can sit on?')" class="hunt-question"><span>🪑</span><b>Near a seat?</b><small>Nearby object</small></button>
-            <button onclick="sendQuestion('Are you near something taller than you?')" class="hunt-question"><span>🌳</span><b>Near something tall?</b><small>Nearby landmark</small></button>
+            <button onclick="sendQuestion('Are you indoors or outdoors?')" class="hunt-question"><span><i class="fa-solid fa-house"></i></span><b>Inside or outside?</b><small>Environment</small></button>
+            <button onclick="sendQuestion('Are you closer to a road, path, or entrance?')" class="hunt-question"><span><i class="fa-solid fa-road"></i></span><b>Nearby route?</b><small>Roads and paths</small></button>
+            <button onclick="sendQuestion('Is your hiding place public or private?')" class="hunt-question"><span><i class="fa-solid fa-users"></i></span><b>Public or private?</b><small>Area type</small></button>
+            <button onclick="sendQuestion('Can you see a building from your hiding spot?')" class="hunt-question"><span><i class="fa-solid fa-building"></i></span><b>Can you see a building?</b><small>Visual clue</small></button>
+            <button onclick="sendQuestion('Are you near something people can sit on?')" class="hunt-question"><span><i class="fa-solid fa-chair"></i></span><b>Near a seat?</b><small>Nearby object</small></button>
+            <button onclick="sendQuestion('Are you near something taller than you?')" class="hunt-question"><span><i class="fa-solid fa-tree"></i></span><b>Near something tall?</b><small>Nearby landmark</small></button>
           </div>
 
           <!-- Custom Question Box -->
@@ -730,19 +730,19 @@
 
         <!-- Scan the Hider's personal game badge -->
       <div class="kid-card space-y-3">
-        <div class="kid-title">🔎 Found the hiding spot?</div>
+        <div class="kid-title"><i class="fa-solid fa-crosshairs mr-2 text-sky-400"></i>Found the hiding spot?</div>
         <p class="kid-help">Ask your friend to show their secret picture, then scan it here to finish the round!</p>
         <video id="scanVideo" class="hidden" playsinline muted></video>
         <canvas id="scanCanvas" class="hidden"></canvas>
         <div id="scanStatus" class="text-sm text-sky-200 text-center">Camera is off. Get close to your friend first!</div>
-        <button id="startScanBtn" onclick="startQrScanner()" class="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-xl">📷 Scan Hider's Picture</button>
+        <button id="startScanBtn" onclick="startQrScanner()" class="w-full bg-sky-500 hover:bg-sky-400 text-white font-bold py-3 rounded-xl"><i class="fa-solid fa-camera mr-2"></i>Scan Hider's Picture</button>
         <button id="stopScanBtn" onclick="stopQrScanner()" class="hidden w-full bg-slate-700 text-white py-3 rounded-xl">Stop camera</button>
       </div>
 
       <div class="kid-card space-y-3">
-        <div class="kid-title">📸 Ask for a picture</div>
+        <div class="kid-title"><i class="fa-regular fa-image mr-2 text-violet-400"></i>Ask for a picture</div>
         <p id="pictureRequestHelp" class="kid-help">Picture requests unlock 1 minute after the game starts.</p>
-        <button id="requestPictureBtn" onclick="requestPlayerPicture()" disabled class="w-full bg-violet-500 text-white py-3 opacity-50">🔒 Unlocks in 1:00</button>
+        <button id="requestPictureBtn" onclick="requestPlayerPicture()" disabled class="w-full bg-violet-500 text-white py-3 opacity-50"><i class="fa-solid fa-lock mr-2"></i>Unlocks in 1:00</button>
         <div id="receivedPictureArea" class="hidden space-y-2"><div class="kid-help font-bold">Picture received!</div><img id="receivedPicture" class="w-full rounded-xl border border-white/20" alt="Picture sent by a Hider"></div>
       </div>
 
@@ -836,7 +836,7 @@
         <!-- Hider power-up card hand -->
         <div id="hiderCardPanel" class="power-card-panel space-y-3">
           <div class="flex items-center justify-between">
-            <div><div class="power-eyebrow">BONUS DROP</div><div class="kid-title">🎴 Your power cards</div></div>
+            <div><div class="power-eyebrow">BONUS DROP</div><div class="kid-title"><i class="fa-solid fa-layer-group mr-2 text-amber-300"></i>Your power cards</div></div>
             <span id="hiderCardCount" class="power-count">0 / 6</span>
           </div>
           <p class="kid-help">Answer questions to earn cards. Build a hand of boosts and curses, then play them at the perfect moment.</p>
@@ -855,7 +855,7 @@
         </div>
 
         <div id="pictureRequestNotice" class="kid-card space-y-3 hidden">
-          <div class="kid-title">📸 The Seeker asked for a picture!</div>
+          <div class="kid-title"><i class="fa-regular fa-image mr-2"></i>The Seeker asked for a picture!</div>
           <p class="kid-help">Only send safe, kid-friendly pictures. The game checks images on your device before sending and blocks detected sexual content. Never share private information.</p>
           <input id="pictureFileInput" type="file" accept="image/*" capture="environment" onchange="sendRequestedPicture()" class="hidden">
           <input id="pictureGalleryInput" type="file" accept="image/*" onchange="sendRequestedPicture()" class="hidden">
@@ -871,9 +871,9 @@
         <div class="space-y-2 pt-1">
           <div class="text-[10px] font-mono text-slate-400 uppercase">Proximity Rating (Hot or Cold)</div>
           <div class="grid grid-cols-3 gap-2 text-xs font-mono">
-            <button onclick="sendHiderAnswer('COLD ❄️')" class="bg-slate-950 hover:bg-blue-950/40 border border-blue-900/50 text-blue-400 py-2.5 rounded-lg font-bold">COLD</button>
-            <button onclick="sendHiderAnswer('WARM 🌤️')" class="bg-slate-950 hover:bg-amber-950/40 border border-amber-900/50 text-amber-400 py-2.5 rounded-lg font-bold">WARM</button>
-            <button onclick="sendHiderAnswer('HOT 🔥')" class="bg-slate-950 hover:bg-rose-950/40 border border-rose-900/50 text-rose-500 py-2.5 rounded-lg font-bold">HOT</button>
+            <button onclick="sendHiderAnswer('COLD')" class="bg-slate-950 hover:bg-blue-950/40 border border-blue-900/50 text-blue-400 py-2.5 rounded-lg font-bold">COLD</button>
+            <button onclick="sendHiderAnswer('WARM')" class="bg-slate-950 hover:bg-amber-950/40 border border-amber-900/50 text-amber-400 py-2.5 rounded-lg font-bold">WARM</button>
+            <button onclick="sendHiderAnswer('HOT')" class="bg-slate-950 hover:bg-rose-950/40 border border-rose-900/50 text-rose-500 py-2.5 rounded-lg font-bold">HOT</button>
           </div>
         </div>
 
@@ -893,13 +893,13 @@
 
     <section id="liveMapPanel" class="kid-card space-y-3">
       <div class="flex items-center justify-between gap-2">
-        <div><div class="kid-title">🗺️ LIVE HUNT MAP</div><p class="kid-help">Your team's live positions update automatically.</p></div>
+        <div><div class="kid-title"><i class="fa-solid fa-map-location-dot mr-2"></i>LIVE HUNT MAP</div><p class="kid-help">Your team's live positions update automatically.</p></div>
         <span id="mapModePill" class="mode-pill">LIVE</span>
       </div>
       <div class="map-legend"><span><i class="map-dot" style="background:#fb7185"></i>Seekers</span><span><i class="map-dot" style="background:#34d399"></i>Hiders</span><span><i class="map-dot" style="background:#a5b4fc"></i>You</span></div>
       <div id="liveMap" role="application" aria-label="Live player map"></div>
       <div class="flex flex-wrap items-center gap-2">
-        <button id="zoneDrawBtn" type="button" onclick="toggleZoneDrawing()" class="rounded-xl px-3 py-2 text-xs font-bold bg-rose-500/15 border border-rose-400/30 text-rose-200">✏️ Cross out area</button>
+        <button id="zoneDrawBtn" type="button" onclick="toggleZoneDrawing()" class="rounded-xl px-3 py-2 text-xs font-bold bg-rose-500/15 border border-rose-400/30 text-rose-200"><i class="fa-solid fa-pen-to-square mr-1"></i>Cross out area</button>
         <button id="zoneFinishBtn" type="button" onclick="finishZoneDrawing()" class="hidden rounded-xl px-3 py-2 text-xs font-bold bg-rose-500 text-white">Finish shape</button>
         <button type="button" onclick="undoZonePoint()" class="rounded-xl px-3 py-2 text-xs bg-slate-800 border border-slate-700 text-slate-200">Undo point</button>
         <button type="button" onclick="clearCrossedAreas()" class="rounded-xl px-3 py-2 text-xs bg-slate-800 border border-slate-700 text-slate-200">Clear areas</button>
@@ -913,7 +913,7 @@
     <!-- VIEW 4: TIMEOUT ROOM FOR FOUND HIDERS -->
     <section id="viewTimeout" class="flex-1 flex flex-col justify-center hidden my-auto py-6">
       <div class="kid-card text-center space-y-4">
-        <div class="text-6xl">🎉</div>
+        <div class="text-4xl text-emerald-400"><i class="fa-solid fa-flag-checkered"></i></div>
         <h2 class="text-2xl font-black text-emerald-300">You’ve been found!</h2>
         <p class="kid-help">You’re now in the Timeout Room. Cheer on the other players while the game continues!</p>
         <div class="rounded-2xl bg-slate-950/70 border border-emerald-400/20 p-4">
@@ -921,7 +921,7 @@
           <p class="text-sm text-slate-200 mt-2">Stay connected. You can still receive game updates and view photos shared during the round.</p>
         </div>
         <div id="timeoutPhotoArea" class="hidden text-left space-y-2">
-          <div class="font-bold text-sm">📸 Picture from the game</div>
+          <div class="font-bold text-sm"><i class="fa-regular fa-image mr-2"></i>Picture from the game</div>
           <img id="timeoutReceivedPhoto" class="w-full rounded-xl border border-white/20" alt="Picture shared during the game">
         </div>
       </div>
@@ -1602,7 +1602,7 @@
     }
     function updateZoneDrawUI(){
       const b=document.getElementById('zoneDrawBtn'),f=document.getElementById('zoneFinishBtn'),st=document.getElementById('zoneDrawStatus');
-      if(b){b.textContent=gameState.zoneDrawing?'✕ Stop drawing':'✏️ Cross out area';b.classList.toggle('bg-rose-500',gameState.zoneDrawing);}
+      if(b){b.innerHTML=gameState.zoneDrawing?'<i class="fa-solid fa-xmark mr-1"></i>Stop drawing':'<i class="fa-solid fa-pen-to-square mr-1"></i>Cross out area';b.classList.toggle('bg-rose-500',gameState.zoneDrawing);}
       if(f)f.classList.toggle('hidden',!gameState.zoneDrawing);
       if(st)st.textContent=gameState.zoneDrawing?'Tap the map to add corners. Finish with 3+ points.':'Red areas are crossed out / already searched.';
     }
@@ -1933,11 +1933,11 @@
     }
 
     const HIDER_POWER_CARDS = [
-      {id:'time_gift',name:'Time Gift',kind:'boost',icon:'⏱️',description:'Add 15 seconds to the Hider team’s time.',action:'time',amount:15},
-      {id:'decoy_charge',name:'Decoy Charge',kind:'boost',icon:'🎭',description:'Get one extra decoy sound this round.',action:'decoy'},
-      {id:'question_jam',name:'Question Jam',kind:'curse',icon:'📵',description:'Stop Seekers asking questions for 15 seconds.',action:'jam',duration:15000},
-      {id:'scanner_glitch',name:'Scanner Glitch',kind:'curse',icon:'📷',description:'Disable the Seeker scanner for 12 seconds.',action:'glitch',duration:12000},
-      {id:'time_snare',name:'Time Snare',kind:'curse',icon:'🕸️',description:'Take 15 seconds away from the Seekers.',action:'time',amount:-15}
+      {id:'time_gift',name:'Time Gift',kind:'boost',icon:'fa-stopwatch',description:'Add 15 seconds to the Hider team’s time.',action:'time',amount:15},
+      {id:'decoy_charge',name:'Decoy Charge',kind:'boost',icon:'fa-theater-masks',description:'Get one extra decoy sound this round.',action:'decoy'},
+      {id:'question_jam',name:'Question Jam',kind:'curse',icon:'fa-comment-slash',description:'Stop Seekers asking questions for 15 seconds.',action:'jam',duration:15000},
+      {id:'scanner_glitch',name:'Scanner Glitch',kind:'curse',icon:'fa-camera-retro',description:'Disable the Seeker scanner for 12 seconds.',action:'glitch',duration:12000},
+      {id:'time_snare',name:'Time Snare',kind:'curse',icon:'fa-hourglass-half',description:'Take 15 seconds away from the Seekers.',action:'time',amount:-15}
     ];
 
     function awardHiderCard() {
@@ -1957,7 +1957,7 @@
       if (!hand || !count) return;
       count.innerText = gameState.hiderCards.length + ' / 6';
       if (!gameState.hiderCards.length) {
-        hand.innerHTML = '<div class="power-empty"><span>🃏</span><b>Your hand is empty</b><small>Answer a Seeker question to earn your first card.</small></div>';
+        hand.innerHTML = '<div class="power-empty"><span><i class="fa-solid fa-layer-group"></i></span><b>Your hand is empty</b><small>Answer a Seeker question to earn your first card.</small></div>';
         return;
       }
       hand.innerHTML = gameState.hiderCards.map((id,index) => {
@@ -1967,7 +1967,7 @@
         const stamp = card.kind === 'boost' ? '✦' : '☠';
         return '<article class="power-card ' + card.kind + '">' +
           '<div class="card-face-top"><span>HIDE & SEEK</span><span>' + type + '</span></div>' +
-          '<div class="card-art ' + card.kind + '"><span>' + card.icon + '</span><b>' + stamp + '</b></div>' +
+          '<div class="card-art ' + card.kind + '"><span><i class="fa-solid ' + card.icon + '"></i></span><b>' + stamp + '</b></div>' +
           '<div class="power-card-info"><div class="power-card-name">' + card.name + '</div>' +
           '<div class="power-card-desc">' + card.description + '</div></div>' +
           '<div class="card-face-bottom"><span>HIDER DECK · ' + (index + 1) + '</span>' +
@@ -2008,7 +2008,7 @@
       } else if (effect === 'glitch') {
         gameState.seekerScannerBlockedUntil = Math.max(gameState.seekerScannerBlockedUntil,Date.now() + Number(duration || 12000));
         stopQrScanner();
-        document.getElementById('scanStatus').innerText = '📷 Scanner glitch! Hiders scrambled your scanner.';
+        document.getElementById('scanStatus').innerText = 'Scanner glitch! Hiders scrambled your scanner.';
         logEvent('📷 SCANNER GLITCH! You cannot scan for a short time.');
       }
     }
@@ -2094,13 +2094,13 @@
         if (remaining <= 0) {
           button.disabled = false;
           button.classList.remove('opacity-50');
-          button.innerText = '📸 Ask Hiders for a picture';
+          button.innerText = 'Ask Hiders for a picture';
           document.getElementById('pictureRequestHelp').innerText = 'Unlocked! Ask the Hider team to send a picture.';
           clearInterval(gameState.pictureUnlockInterval);
         } else {
           button.disabled = true;
           button.classList.add('opacity-50');
-          button.innerText = '🔒 Unlocks in ' + Math.floor(remaining/60000) + ':' + String(Math.ceil((remaining%60000)/1000)).padStart(2,'0');
+          button.innerText = 'Unlocks in ' + Math.floor(remaining/60000) + ':' + String(Math.ceil((remaining%60000)/1000)).padStart(2,'0');
           document.getElementById('pictureRequestHelp').innerText = 'Picture requests unlock 1 minute after the game starts.';
         }
       };
@@ -2263,7 +2263,7 @@
           if (gameState.isHost) handleIncomingData({type:'FOUND_TAG',scanToken:scannedToken}, null);
           else if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: scannedToken });
           AudioEngine.playTone(880, 'sine', .2);
-          alert('🎉 You found your friend! Great scanning! The room will stay connected.');
+          alert('You found your friend! Great scanning! The room will stay connected.');
           logEvent('A Hider was found! Players can continue in the room.');
           return;
         }
