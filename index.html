@@ -355,6 +355,124 @@
 
 </style>
 
+
+  <style id="arcade-ui-and-card-redesign">
+    :root {
+      --ui-ink:#10172b; --ui-panel:#18233d; --ui-line:rgba(190,210,255,.18);
+      --ui-cyan:#38d9ff; --ui-lime:#b8f36b; --ui-violet:#9b8cff;
+      --ui-orange:#ffb454; --ui-pink:#ff6f9f;
+    }
+    body {
+      background:
+        radial-gradient(ellipse at 8% 0%,rgba(56,217,255,.19),transparent 34%),
+        radial-gradient(ellipse at 95% 18%,rgba(255,111,159,.16),transparent 30%),
+        linear-gradient(145deg,#0a1020 0%,#111b35 48%,#1c1740 100%) !important;
+      background-attachment:fixed !important;
+    }
+    header {
+      background:rgba(11,18,36,.94) !important;
+      border-bottom:1px solid rgba(56,217,255,.28) !important;
+      backdrop-filter:blur(18px);
+    }
+    .tactical-border,#hostCard,#joinCard,#viewWaiting > div,#viewSeeker > div,#viewHider > div,#viewTimeout > div,.kid-card {
+      background:linear-gradient(145deg,rgba(31,45,76,.96),rgba(17,27,49,.97)) !important;
+      border:1px solid var(--ui-line) !important;
+      box-shadow:0 16px 38px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.045) !important;
+    }
+    h1,h2,.kid-title { color:#f5f8ff !important; }
+    .kid-help { color:#b9c8e4 !important; }
+    button {
+      min-height:48px !important;
+      border:1px solid rgba(255,255,255,.14) !important;
+      border-radius:14px !important;
+      color:#f8fbff !important;
+      background:linear-gradient(135deg,#35486c,#263653) !important;
+      box-shadow:0 5px 0 rgba(4,9,22,.38),0 9px 18px rgba(0,0,0,.16) !important;
+      font-weight:900 !important;
+      transition:transform .14s ease,filter .14s ease,box-shadow .14s ease !important;
+    }
+    button:not(:disabled):active { transform:translateY(2px) scale(.985) !important; box-shadow:0 2px 0 rgba(4,9,22,.4) !important; }
+    button:disabled { filter:saturate(.45); opacity:.48; }
+    button.bg-radar-500,button.bg-emerald-500,button.bg-green-500 {
+      color:#102016 !important; background:linear-gradient(135deg,#c5f879,#68d99b) !important;
+      border-color:rgba(209,255,158,.65) !important;
+    }
+    button.bg-seeker-500,button.bg-red-500 {
+      background:linear-gradient(135deg,#ff779b,#ed4777) !important; border-color:rgba(255,190,207,.55) !important;
+    }
+    button.bg-indigo-600,button.bg-violet-600,button.bg-purple-600 {
+      background:linear-gradient(135deg,#a69aff,#7668ee) !important; border-color:rgba(214,205,255,.5) !important;
+    }
+    button.bg-sky-500,button.bg-cyan-500 {
+      color:#092333 !important; background:linear-gradient(135deg,#65e5ff,#31b8e8) !important;
+    }
+    button.bg-amber-500,button.bg-yellow-500 {
+      color:#30200b !important; background:linear-gradient(135deg,#ffd477,#ffad42) !important;
+    }
+    input,select,textarea { background:#0e1830 !important; border:1px solid rgba(160,190,240,.24) !important; color:#f8fbff !important; }
+    .power-card-panel {
+      padding:15px !important; border-radius:22px !important;
+      background:linear-gradient(145deg,rgba(36,48,82,.98),rgba(15,24,45,.98)) !important;
+      border:1px solid rgba(155,140,255,.38) !important;
+      box-shadow:0 16px 34px rgba(0,0,0,.24) !important;
+    }
+    .power-eyebrow { color:#a9a0ff !important; }
+    .power-count { color:#f3efff !important; background:#50449a !important; border:1px solid #a69aff !important; }
+    .power-card-hand { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:11px !important; }
+    .power-card {
+      min-width:0; min-height:225px; padding:10px !important; display:flex !important;
+      flex-direction:column !important; align-items:stretch !important; justify-content:space-between !important;
+      gap:8px !important; border-radius:13px !important; position:relative; overflow:hidden;
+      text-align:left; color:#172039 !important;
+      background:linear-gradient(155deg,#fff9e9 0%,#f0e8d5 100%) !important;
+      border:2px solid #e3d8bd !important;
+      box-shadow:0 7px 0 rgba(0,0,0,.22),0 12px 24px rgba(0,0,0,.2) !important;
+    }
+    .power-card.boost { border-color:#83cda7 !important; background:linear-gradient(155deg,#effff5,#d9f3e4) !important; }
+    .power-card.curse { border-color:#ef9aa9 !important; background:linear-gradient(155deg,#fff1f3,#f5dce3) !important; }
+    .card-face-top { display:flex; justify-content:space-between; gap:4px; color:#65718a; font-size:7px; font-weight:1000; letter-spacing:.11em; }
+    .power-card.boost .card-face-top span:last-child { color:#16734b; }
+    .power-card.curse .card-face-top span:last-child { color:#b52f54; }
+    .card-art {
+      min-height:88px; display:grid; place-items:center; position:relative; overflow:hidden;
+      border-radius:9px; background:radial-gradient(circle at 50% 35%,#c6f4d8,#75cba1 70%,#36966e);
+      border:1px solid rgba(20,80,55,.15);
+    }
+    .card-art.curse { background:radial-gradient(circle at 50% 35%,#ffd1dc,#f18ba3 70%,#c94d72); }
+    .card-art span { font-size:43px; filter:drop-shadow(0 4px 3px rgba(0,0,0,.15)); }
+    .card-art b { position:absolute; right:7px; bottom:3px; color:rgba(255,255,255,.78); font-size:28px; }
+    .power-card-info { min-width:0; flex:1; }
+    .power-card-name { color:#172039 !important; font-size:13px !important; line-height:1.15; font-weight:1000 !important; }
+    .power-card-desc { color:#526078 !important; font-size:9px !important; line-height:1.35 !important; margin-top:5px !important; }
+    .card-face-bottom { display:flex; flex-direction:column; gap:6px; border-top:1px solid rgba(35,48,70,.16); padding-top:7px; }
+    .card-face-bottom > span { color:#68748b; font-size:7px; font-weight:1000; letter-spacing:.08em; }
+    .power-card-use {
+      width:100%; min-height:34px !important; padding:6px 8px !important;
+      color:#fff !important; background:linear-gradient(135deg,#6655cb,#42359a) !important;
+      border:0 !important; border-radius:8px !important; font-size:9px !important;
+      letter-spacing:.06em !important; box-shadow:0 3px 0 rgba(35,25,85,.3) !important;
+    }
+    .power-empty {
+      grid-column:1/-1; display:flex; flex-direction:column; align-items:center; gap:6px;
+      padding:22px 12px !important; border:1px dashed rgba(190,200,255,.32) !important;
+      border-radius:14px; color:#b9c8e4 !important; font-size:12px;
+    }
+    .power-empty span { font-size:28px; }
+    .power-empty b { color:#f4f6ff; font-size:13px; }
+    .power-empty small { color:#9eacc8; font-size:10px; text-align:center; }
+    .hunt-question {
+      color:#f5f8ff !important; background:linear-gradient(145deg,#263d60,#172943) !important;
+      border:1px solid rgba(88,190,255,.28) !important; border-radius:16px !important;
+      box-shadow:0 5px 0 rgba(5,12,25,.25) !important;
+    }
+    .hunt-question:hover { border-color:#55dfff !important; background:linear-gradient(145deg,#31577a,#1c3655) !important; }
+    #liveMap { border:2px solid rgba(56,217,255,.35) !important; }
+    @media(max-width:370px) {
+      .power-card-hand { grid-template-columns:1fr !important; }
+      .power-card { min-height:190px; }
+    }
+  </style>
+
 </head>
 <body class="h-full flex flex-col font-sans select-none overflow-x-hidden antialiased bg-slate-950 text-slate-100">
 
@@ -683,9 +801,9 @@
         <div id="hiderCardPanel" class="power-card-panel space-y-3">
           <div class="flex items-center justify-between">
             <div><div class="power-eyebrow">BONUS DROP</div><div class="kid-title">🎴 Your power cards</div></div>
-            <span id="hiderCardCount" class="power-count">0 / 3</span>
+            <span id="hiderCardCount" class="power-count">0 / 6</span>
           </div>
-          <p class="kid-help">Every Seeker question gives you a random card. Use it when the timing is right!</p>
+          <p class="kid-help">Answer questions to earn cards. Build a hand of boosts and curses, then play them at the perfect moment.</p>
           <div id="hiderCardHand" class="power-card-hand"><div class="power-empty">Your first card arrives when a Seeker asks a question.</div></div>
         </div>
 
@@ -1785,7 +1903,7 @@
     ];
 
     function awardHiderCard() {
-      if (gameState.hiderCards.length >= 3) {
+      if (gameState.hiderCards.length >= 6) {
         logEvent('🎴 Your card hand is full! Use a card first.');
         return;
       }
@@ -1799,7 +1917,7 @@
       const hand = document.getElementById('hiderCardHand');
       const count = document.getElementById('hiderCardCount');
       if (!hand || !count) return;
-      count.innerText = gameState.hiderCards.length + ' / 3';
+      count.innerText = gameState.hiderCards.length + ' / 6';
       if (!gameState.hiderCards.length) {
         hand.innerHTML = '<div class="power-empty">Your first card arrives when a Seeker asks a question.</div>';
         return;
