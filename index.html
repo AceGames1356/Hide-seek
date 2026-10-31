@@ -442,6 +442,8 @@
         </div>
       </div>
 
+      <div id="hiderAnswerFeed" class="flex flex-col gap-2 max-h-32 overflow-hidden" aria-live="polite"></div>
+
       <!-- Action Panel: Questions & Distance Requests -->
       <div class="bg-slate-900 p-4 rounded-xl tactical-border space-y-3 flex-1 flex flex-col justify-between">
         <div class="space-y-2">
@@ -938,7 +940,10 @@
       });
 
       conn.on('data', (data) => {
-        if (gameState.isHost && data.type !== 'HANDSHAKE') broadcastToPlayers(data, conn);
+        if (gameState.isHost && data.type !== 'HANDSHAKE') {
+          if (data.type === 'ANSWER') data.senderName = sourcePlayerLabel(conn);
+          broadcastToPlayers(data, conn);
+        }
         handleIncomingData(data, conn);
       });
 
@@ -974,8 +979,15 @@
 
       switch (data.type) {
         case 'HANDSHAKE':
-          if (gameState.isHost) { sourceConn.playerName=String(data.name||'Player').slice(0,16); gameState.players.push({name:sourceConn.playerName,role:data.role==='SEEKER'?'SEEKER':'HIDER',connection:sourceConn}); updateRoomPlayers(); logEvent(data.name+' joined!'); }
-          else { gameState.peerName=data.name||'Host'; gameState.hidingDuration=data.hidingDuration||60; gameState.seekingDuration=data.seekingDuration||300; }
+          if (gameState.isHost) {
+            sourceConn.playerName=String(data.name||'Player').trim().slice(0,16)||'Player';
+            gameState.players.push({name:sourceConn.playerName,role:data.role==='SEEKER'?'SEEKER':'HIDER',connection:sourceConn});
+            refreshUniquePlayerLabels(); updateRoomPlayers();
+            logEvent(sourceConn.displayName+' joined!');
+          } else { gameState.peerName=data.name||'Host'; gameState.hidingDuration=data.hidingDuration||60; gameState.seekingDuration=data.seekingDuration||300; }
+          break;
+        case 'PLAYER_LABEL':
+          gameState.displayName = data.displayName || gameState.playerName;
           break;
         case 'ROOM_FULL': alert('Room is full!'); location.reload(); break;
 
@@ -1035,9 +1047,23 @@
         case 'ANSWER':
           AudioEngine.playTone(600, 'sine', 0.2);
           if (gameState.role === 'SEEKER') {
-            document.getElementById('lastSignalText').innerText = `ANSWER: ${data.text}`;
+            const answerName = data.senderName || 'Hider';
+            const feed = document.getElementById('hiderAnswerFeed');
+            if (feed) {
+              const item = document.createElement('div');
+              item.className = 'rounded-xl border border-violet-300/20 bg-violet-950/90 p-2 shadow-lg';
+              const who = document.createElement('div');
+              who.className = 'text-[11px] font-extrabold text-violet-200';
+              who.innerText = answerName;
+              const answer = document.createElement('div');
+              answer.className = 'text-sm font-bold text-white';
+              answer.innerText = data.text;
+              item.append(who, answer); feed.prepend(item);
+              while (feed.children.length > 4) feed.lastElementChild.remove();
+            }
+            document.getElementById('lastSignalText').innerText = answerName + ': ' + data.text;
           }
-          logEvent(`Hider responded: "${data.text}"`);
+          logEvent((data.senderName || 'Hider') + ' answered: "' + data.text + '"');
           break;
 
         case 'PROXIMITY_REQUEST':
@@ -1132,7 +1158,23 @@
     }
     function broadcastToPlayers(packet, exceptConn) { gameState.connections.forEach(c=>{if(c!==exceptConn&&c.open)c.send(packet);}); }
     function sendGameMessage(packet) { if(gameState.isHost) broadcastToPlayers(packet); else if(gameState.connection&&gameState.connection.open) gameState.connection.send(packet); }
-    function updateRoomPlayers() { const c=document.getElementById('playerCount'); if(c)c.innerText=(gameState.connections.length+1)+'/8'; const l=document.getElementById('playerList'); if(l)l.innerText=['You ('+gameState.role+')',...gameState.players.map(p=>p.name+' ('+p.role+')')].join(' • '); }
+    function sourcePlayerLabel(conn) { return conn.displayName || conn.playerName || 'Hider'; }
+    function refreshUniquePlayerLabels() {
+      const all=[{name:gameState.playerName,host:true},...gameState.players.map(p=>({name:p.name,connection:p.connection}))];
+      const counts={}, seen={};
+      all.forEach(p=>{const k=p.name.toLowerCase();counts[k]=(counts[k]||0)+1;});
+      all.forEach(p=>{
+        const k=p.name.toLowerCase();seen[k]=(seen[k]||0)+1;
+        const label=counts[k]>1?p.name+' '+seen[k]:p.name;
+        if(p.host) gameState.displayName=label;
+        else {const player=gameState.players.find(x=>x.connection===p.connection);if(player){player.displayName=label;p.connection.displayName=label;if(p.connection.open)p.connection.send({type:'PLAYER_LABEL',displayName:label});}}
+      });
+    }
+    function updateRoomPlayers() {
+      const c=document.getElementById('playerCount');if(c)c.innerText=(gameState.connections.length+1)+'/8';
+      const l=document.getElementById('playerList');
+      if(l)l.innerText=[(gameState.displayName||gameState.playerName)+' ('+gameState.role+')',...gameState.players.map(p=>(p.displayName||p.name)+' ('+p.role+')')].join(' • ');
+    }
     function sendMarcoCall() { if(gameState.role==='SEEKER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'MARCO_CALL'});logEvent('📣 You called MARCO!');} }
     function sendPoloReply() { if(gameState.role==='HIDER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'POLO_REPLY'});logEvent('🙋 You answered POLO!');} }
 
@@ -1424,7 +1466,7 @@
         logEvent('You can answer once the seeking phase begins.');
         return;
       }
-      sendGameMessage({ type: 'ANSWER', text: ansText });
+      sendGameMessage({ type: 'ANSWER', text: ansText, senderName: gameState.displayName || gameState.playerName });
       logEvent(`You transmitted answer: "${ansText}"`);
       
       document.getElementById('hiderAlertBadge').className = 'bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]';
