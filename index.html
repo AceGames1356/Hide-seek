@@ -919,6 +919,9 @@
       pictureRequestOpen: false,
       imageSafetyModel: null,
       imageSafetyModelPromise: null,
+      reconnectToken: '',
+      reconnectInterval: null,
+      reconnecting: false,
     };
 
     const gameModeSelect = document.getElementById('gameModeSelect');
@@ -1042,15 +1045,11 @@
       gameState.playerName = document.getElementById('playerNameInput').value || 'Join-Agent';
       gameState.role = document.getElementById('joinRoleSelect').value;
 
+      gameState.reconnectToken = getReconnectToken();
       gameState.peer = new Peer();
 
       gameState.peer.on('open', () => {
-        updateStatus('CONNECTING...', 'bg-amber-500 animate-pulse');
-        const hostPeerId = 'tac-seek-' + gameState.roomCode;
-        gameState.connection = gameState.peer.connect(hostPeerId, {
-          metadata: { name: gameState.playerName }
-        });
-        setupConnectionHandlers(gameState.connection);
+        connectToRoomHost();
       });
 
       gameState.peer.on('error', (err) => {
@@ -1058,6 +1057,51 @@
         alert('Could not find room with code: ' + inputCode);
         updateStatus('DISCONNECTED', 'bg-rose-500');
       });
+    }
+
+    function getReconnectToken() {
+      const key = 'hideSeekReconnect_' + gameState.roomCode;
+      let token = '';
+      try { token = sessionStorage.getItem(key) || ''; } catch(e) {}
+      if (!token) token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('hs-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      try { sessionStorage.setItem(key, token); } catch(e) {}
+      return token;
+    }
+
+    function connectToRoomHost() {
+      if (!gameState.peer || gameState.isHost || gameState.reconnecting) return;
+      gameState.reconnecting = true;
+      updateStatus('CONNECTING...', 'bg-amber-500 animate-pulse');
+      const hostPeerId = 'tac-seek-' + gameState.roomCode;
+      const conn = gameState.peer.connect(hostPeerId, {
+        metadata: { name: gameState.playerName, reconnectToken: gameState.reconnectToken },
+        reliable: true
+      });
+      gameState.connection = conn;
+      setupConnectionHandlers(conn);
+      conn.on('open', () => {
+        gameState.reconnecting = false;
+        if (gameState.reconnectInterval) { clearInterval(gameState.reconnectInterval); gameState.reconnectInterval = null; }
+      });
+      conn.on('close', () => {
+        gameState.reconnecting = false;
+      });
+    }
+
+    function showReconnectNotice(message) {
+      let box = document.getElementById('reconnectNotice');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'reconnectNotice';
+        box.style.cssText = 'position:fixed;z-index:10000;left:16px;right:16px;bottom:18px;max-width:440px;margin:auto;padding:16px;border-radius:18px;background:#111827;border:1px solid #475569;box-shadow:0 12px 40px #0009;color:white;text-align:center';
+        box.innerHTML = '<div style="font-weight:900;font-size:16px;margin-bottom:6px">Connection lost</div><div id="reconnectMessage" style="font-size:13px;color:#cbd5e1;margin-bottom:12px"></div><button id="reconnectNowBtn" style="background:#38bdf8;color:#082f49;font-weight:900;padding:11px 18px;border-radius:12px;width:100%">REJOIN GAME</button>';
+        document.body.appendChild(box);
+        document.getElementById('reconnectNowBtn').onclick = () => {
+          if (gameState.reconnectInterval) { clearInterval(gameState.reconnectInterval); gameState.reconnectInterval = null; }
+          connectToRoomHost();
+        };
+      }
+      document.getElementById('reconnectMessage').innerText = message;
     }
 
     function setupConnectionHandlers(conn = gameState.connection) {
@@ -1071,6 +1115,7 @@
           role: gameState.role,
           hidingDuration: gameState.hidingDuration,
           seekingDuration: gameState.seekingDuration,
+          reconnectToken: gameState.reconnectToken,
         });
 
         if (gameState.isHost) {
@@ -1078,9 +1123,11 @@
           document.getElementById('startGameBtn').disabled = false;
           document.getElementById('startGameBtn').classList.remove('opacity-50', 'cursor-not-allowed');
         } else {
-          showView('viewWaiting');
+          const notice = document.getElementById('reconnectNotice');
+          if (notice) notice.remove();
+          if (gameState.currentPhase === 'HIDING' && !gameState.gameStartedAt) showView('viewWaiting');
           document.getElementById('waitingTitle').innerText = 'Connected to Host!';
-          document.getElementById('waitingSubtitle').innerText = 'Awaiting Host to start tactical phase...';
+          document.getElementById('waitingSubtitle').innerText = 'Rejoined successfully. Syncing game...';
         }
       });
 
@@ -1094,9 +1141,10 @@
 
       conn.on('close', () => {
         if (gameState.isHost) {
-          // Remove only the player whose connection closed. Keep the room alive.
+          // Keep the player's slot and reconnect token so they can return.
           gameState.connections = gameState.connections.filter(c => c !== conn);
-          gameState.players = gameState.players.filter(p => p.connection !== conn);
+          const disconnectedPlayer = gameState.players.find(p => p.connection === conn);
+          if (disconnectedPlayer) { disconnectedPlayer.connection = null; disconnectedPlayer.disconnectedAt = Date.now(); }
           if (gameState.connection === conn) gameState.connection = gameState.connections[0] || null;
           updateRoomPlayers();
           logEvent((conn.playerName || 'A player') + ' disconnected. The room is still active.');
@@ -1108,12 +1156,17 @@
             }
           }
         } else {
-          // Only this device returns to the lobby if the host connection is lost.
+          // Keep the room code and reconnect identity; retry while the host room exists.
           updateStatus('DISCONNECTED', 'bg-rose-500');
-          alert('You disconnected from the host. Other players can keep playing.');
           stopQrScanner();
           clearInterval(gameState.timerInterval);
           showView('viewLobby');
+          showReconnectNotice('Trying to reconnect automatically. You can also tap below.');
+          if (!gameState.reconnectInterval) {
+            gameState.reconnectInterval = setInterval(() => {
+              if (!gameState.connection || !gameState.connection.open) connectToRoomHost();
+            }, 5000);
+          }
         }
       });
     }
@@ -1126,10 +1179,43 @@
         case 'HANDSHAKE':
           if (gameState.isHost) {
             sourceConn.playerName=String(data.name||'Player').trim().slice(0,16)||'Player';
-            gameState.players.push({name:sourceConn.playerName,role:data.role==='SEEKER'?'SEEKER':'HIDER',connection:sourceConn});
+            const token = String(data.reconnectToken || '');
+            let player = token ? gameState.players.find(p => p.reconnectToken === token) : null;
+            if (player && !player.connection) {
+              player.connection = sourceConn;
+              player.name = sourceConn.playerName;
+              player.role = data.role === 'SEEKER' ? 'SEEKER' : 'HIDER';
+              player.disconnectedAt = 0;
+              logEvent(sourceConn.playerName + ' rejoined the game!');
+              sourceConn.send({type:'REJOIN_STATE',currentPhase:gameState.currentPhase,timeRemaining:gameState.timeRemaining,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked,hidingDuration:gameState.hidingDuration,seekingDuration:gameState.seekingDuration,gameMode:gameState.gameMode,scanToken:player.scanToken || '',allowedScanTokens:gameState.allowedScanTokens || [],crossedAreas:gameState.crossedAreas || []});
+            } else {
+              if (gameState.players.filter(p => p.connection).length >= 7) { sourceConn.send({type:'ROOM_FULL'}); break; }
+              player = {name:sourceConn.playerName,role:data.role==='SEEKER'?'SEEKER':'HIDER',connection:sourceConn,reconnectToken:token,scanToken:''};
+              gameState.players.push(player);
+              logEvent(sourceConn.playerName+' joined!');
+            }
             refreshUniquePlayerLabels(); updateRoomPlayers();
-            logEvent(sourceConn.displayName+' joined!');
           } else { gameState.peerName=data.name||'Host'; gameState.hidingDuration=data.hidingDuration||60; gameState.seekingDuration=data.seekingDuration||300; }
+          break;
+        case 'REJOIN_STATE':
+          gameState.hidingDuration = data.hidingDuration || gameState.hidingDuration;
+          gameState.seekingDuration = data.seekingDuration ?? gameState.seekingDuration;
+          gameState.gameMode = data.gameMode || gameState.gameMode;
+          gameState.currentPhase = data.currentPhase || 'HIDING';
+          gameState.timeRemaining = Number(data.timeRemaining ?? gameState.timeRemaining);
+          gameState.isTimerPaused = !!data.isPaused;
+          gameState.isSleepLocked = !!data.isSleepLocked;
+          gameState.scanToken = data.scanToken || gameState.scanToken;
+          gameState.allowedScanTokens = data.allowedScanTokens || gameState.allowedScanTokens;
+          gameState.crossedAreas = data.crossedAreas || [];
+          if (gameState.gameStartedAt) {
+            showView(gameState.role === 'SEEKER' ? 'viewSeeker' : 'viewHider');
+            startLiveLocationSharing();
+            renderCrossedAreas();
+          }
+          updateSleepLockUI();
+          renderTimerUI();
+          logEvent('Rejoined! Game state restored.');
           break;
         case 'PLAYER_LABEL':
           gameState.displayName = data.displayName || gameState.playerName;
@@ -1305,6 +1391,7 @@
       gameState.connections.forEach(conn => {
         const player = gameState.players.find(p => p.connection === conn);
         const token = player && player.role === 'HIDER' ? player.scanToken : makeToken();
+        if (player) player.scanToken = token;
         conn.send({type:'START_GAME',hidingDuration:gameState.hidingDuration,seekingDuration:gameState.seekingDuration,scanToken:token,allowedScanTokens:hiderTokens,gameMode:gameState.gameMode});
       });
       startGamePhase(gameState.scanToken);
@@ -1324,9 +1411,10 @@
       });
     }
     function updateRoomPlayers() {
-      const c=document.getElementById('playerCount');if(c)c.innerText=(gameState.connections.length+1)+'/8';
+      const activePlayers = gameState.players.filter(p => p.connection && p.connection.open);
+      const c=document.getElementById('playerCount');if(c)c.innerText=(activePlayers.length+1)+'/8';
       const l=document.getElementById('playerList');
-      if(l)l.innerText=[(gameState.displayName||gameState.playerName)+' ('+gameState.role+')',...gameState.players.map(p=>(p.displayName||p.name)+' ('+p.role+')')].join(' • ');
+      if(l)l.innerText=[(gameState.displayName||gameState.playerName)+' ('+gameState.role+')',...gameState.players.map(p=>(p.displayName||p.name)+(p.connection?' ('+p.role+')':' (reconnecting)'))].join(' • ');
     }
 
     function startLiveLocationSharing() {
