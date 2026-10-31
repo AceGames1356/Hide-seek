@@ -356,7 +356,7 @@
           </div>
         </div>
 
-        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HIDE_SEEK">Classic QR Hide & Seek</option><option value="MARCO_POLO">Marco Polo</option></select><p class="kid-help">Marco Polo: seekers call “Marco!” and hiders answer “Polo!”</p></div>
+        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HOUSE">🏠 House — QR Hide & Seek</option><option value="CITY">🏙️ City — Urban Hunt</option><option value="COUNTRY">🌎 Country — Regional Hunt</option><option value="WORLD">🌐 World — Global Hunt</option></select><p class="kid-help">Every mode uses QR confirmation, live location sharing, map searches, questions and strategy cards.</p></div>
       <!-- Phase Duration Controls for Host -->
         <div class="space-y-2">
           <label class="block text-xs font-mono text-slate-400 uppercase">GAME TIME</label>
@@ -548,7 +548,7 @@
         <div id="receivedPictureArea" class="hidden space-y-2"><div class="kid-help font-bold">Picture received!</div><img id="receivedPicture" class="w-full rounded-xl border border-white/20" alt="Picture sent by a Hider"></div>
       </div>
 
-      <div id="marcoSeekerControls" class="kid-card space-y-2 hidden"><div class="kid-title">📣 Marco Polo</div><p class="kid-help">Call out and listen for the hiders!</p><button onclick="sendMarcoCall()" class="w-full bg-violet-500 text-white py-3">📣 MARCO!</button></div>
+      
       <!-- Proximity Request & Found Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-2">
           <button onclick="requestProximityPing()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-mono font-bold py-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition-colors">
@@ -668,7 +668,7 @@
           <p class="kid-help">Taking a photo is the easiest option. Your camera opens directly.</p>
           <p id="pictureSendStatus" class="kid-help"></p>
         </div>
-        <div id="marcoHiderControls" class="kid-card space-y-2 hidden"><div class="kid-title">🙋 Marco Polo</div><p class="kid-help">Tap when you hear “Marco!”</p><button onclick="sendPoloReply()" class="w-full bg-cyan-500 text-white py-3">🙋 POLO!</button></div>
+        
         <!-- Hot/Cold Proximity Quick Answers -->
         <div class="space-y-2 pt-1">
           <div class="text-[10px] font-mono text-slate-400 uppercase">Proximity Rating (Hot or Cold)</div>
@@ -691,6 +691,13 @@
           </button>
         </div>
       </div>
+    </section>
+
+    <section id="liveMapPanel" class="kid-card space-y-2">
+      <div class="flex items-center justify-between"><div class="kid-title">🗺️ LIVE PLAYER MAP</div><span class="text-[10px] text-emerald-300">LOCATION SHARING</span></div>
+      <p class="kid-help">Your team can see the other players’ last shared positions. Everyone must allow location access. Only play in places where you have permission.</p>
+      <div id="locationStatus" class="text-xs text-slate-400">Location sharing starts when the round begins.</div>
+      <div id="liveLocationList" class="rounded-xl bg-slate-950/70 p-3 space-y-1"><p class="text-xs text-slate-400">No locations yet.</p></div>
     </section>
 
     <!-- VIEW 4: TIMEOUT ROOM FOR FOUND HIDERS -->
@@ -840,7 +847,8 @@
       lastPingAt: 0,
       lastDecoyAt: 0,
       scanToken: '',
-      gameMode: 'HIDE_SEEK',
+      gameMode: 'HOUSE',
+      locations: {}, locationWatchId: null, lastLocationSentAt: 0,
       connections: [],
       players: [],
       qrScannerStream: null,
@@ -1049,7 +1057,7 @@
           gameState.seekingDuration = data.seekingDuration;
           gameState.scanToken = data.scanToken || '';
           gameState.allowedScanTokens = data.allowedScanTokens || (data.scanToken ? [data.scanToken] : []);
-          gameState.gameMode = data.gameMode || 'HIDE_SEEK';
+          gameState.gameMode = data.gameMode || 'HOUSE';
           startGamePhase(data.scanToken);
           break;
 
@@ -1137,12 +1145,10 @@
           logEvent(`⚠️ DECOY SOUND PLAYED BY HIDER!`);
           break;
 
-        case 'MARCO_CALL':
-          if (gameState.role === 'HIDER') { AudioEngine.playQuestionAlert(); document.getElementById('hiderQuestionDisplay').innerText='📣 MARCO! Tap POLO to answer!'; }
-          logEvent('📣 A seeker called MARCO!'); break;
-        case 'POLO_REPLY':
-          if (gameState.role === 'SEEKER') { AudioEngine.playTone(660,'sine',.3); document.getElementById('lastSignalText').innerText='🙋 POLO!'; }
-          logEvent('🙋 A hider answered POLO!'); break;
+        case 'LOCATION_UPDATE':
+          gameState.locations[data.playerId || 'peer'] = {name:data.name || 'Player',role:data.role || 'HIDER',lat:Number(data.lat),lon:Number(data.lon),updatedAt:Date.now()};
+          renderLiveMap();
+          break;
         case 'MATCH_END':
           clearInterval(gameState.timerInterval);
           alert(data.message || 'Time is up! The Hider wins this round.');
@@ -1228,8 +1234,22 @@
       const l=document.getElementById('playerList');
       if(l)l.innerText=[(gameState.displayName||gameState.playerName)+' ('+gameState.role+')',...gameState.players.map(p=>(p.displayName||p.name)+' ('+p.role+')')].join(' • ');
     }
-    function sendMarcoCall() { if(gameState.role==='SEEKER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'MARCO_CALL'});logEvent('📣 You called MARCO!');} }
-    function sendPoloReply() { if(gameState.role==='HIDER'&&gameState.currentPhase==='SEEKING'){sendGameMessage({type:'POLO_REPLY'});logEvent('🙋 You answered POLO!');} }
+
+    function startLiveLocationSharing() {
+      if (!navigator.geolocation || gameState.locationWatchId !== null) return;
+      gameState.locationWatchId = navigator.geolocation.watchPosition(pos => {
+        const packet = {type:'LOCATION_UPDATE',playerId:gameState.peer ? gameState.peer.id : gameState.playerName,name:gameState.displayName || gameState.playerName,role:gameState.role,lat:pos.coords.latitude,lon:pos.coords.longitude};
+        gameState.locations[packet.playerId] = {...packet,updatedAt:Date.now()};
+        if (Date.now() - gameState.lastLocationSentAt > 5000) { gameState.lastLocationSentAt=Date.now(); sendGameMessage(packet); }
+        renderLiveMap();
+      }, () => { const el=document.getElementById('locationStatus'); if(el) el.innerText='Location unavailable — allow location access to share your position.'; }, {enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+    }
+    function renderLiveMap() {
+      const list=document.getElementById('liveLocationList'); if(!list) return;
+      const entries=Object.values(gameState.locations).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      list.innerHTML=entries.length ? entries.map(p=>'<div class="flex items-center justify-between gap-2 text-xs py-1"><span>'+String(p.name).replace(/[<>]/g,'')+' · '+p.role+'</span><a class="text-cyan-300 underline" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat='+p.lat+'&mlon='+p.lon+'#map=16/'+p.lat+'/'+p.lon+'">View location ↗</a></div>').join('') : '<p class="text-xs text-slate-400">Waiting for players to share their location…</p>';
+      const status=document.getElementById('locationStatus'); if(status) status.innerText=entries.length+' live/last-known player location(s).';
+    }
 
     function startGamePhase(scanToken) {
       if (scanToken) gameState.scanToken = scanToken;
@@ -1238,8 +1258,8 @@
       } else {
         showView('viewHider');
       }
-      document.getElementById('marcoSeekerControls').classList.toggle('hidden',gameState.gameMode!=='MARCO_POLO');
-      document.getElementById('marcoHiderControls').classList.toggle('hidden',gameState.gameMode!=='MARCO_POLO');
+      startLiveLocationSharing();
+      renderLiveMap();
 
       // Display Host Controls if current player is host
       if (gameState.isHost) {
