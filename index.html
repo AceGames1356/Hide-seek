@@ -89,7 +89,7 @@
     #viewLobby > div:first-child h1 { font-size: clamp(2rem, 8vw, 2.7rem) !important; font-weight: 900 !important; }
     #viewLobby > div:first-child p { font-size: 1rem !important; color: #dbeafe !important; }
     .tactical-border, #hostCard, #joinCard, #viewWaiting > div,
-    #viewSeeker > div, #viewHider > div {
+    #viewSeeker > div, #viewHider > div, #viewTimeout > div {
       border: 1px solid rgba(255,255,255,.16) !important;
       border-radius: 24px !important;
       background: rgba(30, 41, 59, .92) !important;
@@ -427,6 +427,13 @@
         <button id="stopScanBtn" onclick="stopQrScanner()" class="hidden w-full bg-slate-700 text-white py-3 rounded-xl">Stop camera</button>
       </div>
 
+      <div class="kid-card space-y-3">
+        <div class="kid-title">📸 Ask for a picture</div>
+        <p id="pictureRequestHelp" class="kid-help">Picture requests unlock 1 minute after the game starts.</p>
+        <button id="requestPictureBtn" onclick="requestPlayerPicture()" disabled class="w-full bg-violet-500 text-white py-3 opacity-50">🔒 Unlocks in 1:00</button>
+        <div id="receivedPictureArea" class="hidden space-y-2"><div class="kid-help font-bold">Picture received!</div><img id="receivedPicture" class="w-full rounded-xl border border-white/20" alt="Picture sent by a Hider"></div>
+      </div>
+
       <div id="marcoSeekerControls" class="kid-card space-y-2 hidden"><div class="kid-title">📣 Marco Polo</div><p class="kid-help">Call out and listen for the hiders!</p><button onclick="sendMarcoCall()" class="w-full bg-violet-500 text-white py-3">📣 MARCO!</button></div>
       <!-- Proximity Request & Found Buttons -->
         <div class="grid grid-cols-2 gap-3 pt-2">
@@ -535,6 +542,13 @@
           </div>
         </div>
 
+        <div id="pictureRequestNotice" class="kid-card space-y-3 hidden">
+          <div class="kid-title">📸 The Seeker asked for a picture!</div>
+          <p class="kid-help">Take or choose a safe picture to share. Don’t photograph private information or anything unsafe.</p>
+          <input id="pictureFileInput" type="file" accept="image/*" capture="environment" class="w-full text-sm text-slate-300">
+          <button onclick="sendRequestedPicture()" class="w-full bg-violet-500 text-white py-3">Send picture</button>
+          <p id="pictureSendStatus" class="kid-help"></p>
+        </div>
         <div id="marcoHiderControls" class="kid-card space-y-2 hidden"><div class="kid-title">🙋 Marco Polo</div><p class="kid-help">Tap when you hear “Marco!”</p><button onclick="sendPoloReply()" class="w-full bg-cyan-500 text-white py-3">🙋 POLO!</button></div>
         <!-- Hot/Cold Proximity Quick Answers -->
         <div class="space-y-2 pt-1">
@@ -556,6 +570,23 @@
             <i class="fa-solid fa-eye-slash"></i>
             <span>STEALTH MODE</span>
           </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: TIMEOUT ROOM FOR FOUND HIDERS -->
+    <section id="viewTimeout" class="flex-1 flex flex-col justify-center hidden my-auto py-6">
+      <div class="kid-card text-center space-y-4">
+        <div class="text-6xl">🎉</div>
+        <h2 class="text-2xl font-black text-emerald-300">You’ve been found!</h2>
+        <p class="kid-help">You’re now in the Timeout Room. Cheer on the other players while the game continues!</p>
+        <div class="rounded-2xl bg-slate-950/70 border border-emerald-400/20 p-4">
+          <div class="text-xs uppercase tracking-wider text-emerald-300 font-black">TIMEOUT ROOM</div>
+          <p class="text-sm text-slate-200 mt-2">Stay connected. You can still receive game updates and view photos shared during the round.</p>
+        </div>
+        <div id="timeoutPhotoArea" class="hidden text-left space-y-2">
+          <div class="font-bold text-sm">📸 Picture from the game</div>
+          <img id="timeoutReceivedPhoto" class="w-full rounded-xl border border-white/20" alt="Picture shared during the game">
         </div>
       </div>
     </section>
@@ -696,6 +727,11 @@
       qrScannerStream: null,
       qrScannerActive: false,
       qrScanFrame: null,
+      allowedScanTokens: [],
+      foundTokens: [],
+      gameStartedAt: 0,
+      pictureUnlockInterval: null,
+      pictureRequestOpen: false,
     };
 
     // Initialize random 4-digit ID generator
@@ -705,12 +741,12 @@
 
     // --- UI VIEW SWITCHING ---
     function showView(viewId) {
-      ['viewLobby', 'viewWaiting', 'viewSeeker', 'viewHider'].forEach(id => {
+      ['viewLobby', 'viewWaiting', 'viewSeeker', 'viewHider', 'viewTimeout'].forEach(id => {
         document.getElementById(id).classList.add('hidden');
       });
       document.getElementById(viewId).classList.remove('hidden');
 
-      if (viewId === 'viewSeeker' || viewId === 'viewHider') {
+      if (viewId === 'viewSeeker' || viewId === 'viewHider' || viewId === 'viewTimeout') {
         document.getElementById('gameLogSection').classList.remove('hidden');
       } else {
         document.getElementById('gameLogSection').classList.add('hidden');
@@ -881,6 +917,7 @@
           gameState.hidingDuration = data.hidingDuration;
           gameState.seekingDuration = data.seekingDuration;
           gameState.scanToken = data.scanToken || '';
+          gameState.allowedScanTokens = data.allowedScanTokens || (data.scanToken ? [data.scanToken] : []);
           gameState.gameMode = data.gameMode || 'HIDE_SEEK';
           startGamePhase(data.scanToken);
           break;
@@ -968,11 +1005,44 @@
           break;
 
         case 'FOUND_TAG':
-          if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING' || data.scanToken !== gameState.scanToken) break;
-          stopQrScanner();
-          AudioEngine.playTone(1000, 'sine', 0.35);
-          alert(`🎉 You were found! ${gameState.peerName} scanned your picture! The room will stay connected.`);
-          logEvent('A Hider was found. The room is still active.');
+          if (gameState.isHost) {
+            const token = String(data.scanToken || '');
+            if (!token || gameState.foundTokens.includes(token)) break;
+            gameState.foundTokens.push(token);
+            const target = gameState.players.find(p => p.scanToken === token && p.role === 'HIDER');
+            if (target && target.connection && target.connection.open) target.connection.send({type:'FOUND_CONFIRMED'});
+            if (gameState.role === 'HIDER' && gameState.scanToken === token) enterTimeoutRoom();
+            broadcastToPlayers({type:'PLAYER_FOUND', playerName: target ? target.name : (gameState.role === 'HIDER' && gameState.scanToken === token ? gameState.playerName : 'A Hider')});
+            logEvent((target ? target.name : 'A Hider') + ' moved to the Timeout Room.');
+          }
+          break;
+
+        case 'FOUND_CONFIRMED':
+          if (gameState.role === 'HIDER') enterTimeoutRoom();
+          break;
+
+        case 'PLAYER_FOUND':
+          logEvent('🎉 ' + (data.playerName || 'A Hider') + ' was found and moved to the Timeout Room.');
+          break;
+
+        case 'REQUEST_PICTURE':
+          if (gameState.role === 'HIDER' && !gameState.isFound) {
+            gameState.pictureRequestOpen = true;
+            document.getElementById('pictureRequestNotice').classList.remove('hidden');
+            document.getElementById('pictureSendStatus').innerText = 'You have a picture request. Choose a photo to send.';
+            logEvent('📸 The Seeker requested a picture.');
+          }
+          break;
+
+        case 'SEND_PICTURE':
+          if (gameState.role === 'SEEKER' && typeof data.image === 'string' && data.image.startsWith('data:image/')) {
+            document.getElementById('receivedPicture').src = data.image;
+            document.getElementById('receivedPictureArea').classList.remove('hidden');
+            logEvent('📸 A Hider sent a picture.');
+          } else if (gameState.role === 'HIDER' && gameState.isFound) {
+            document.getElementById('timeoutReceivedPhoto').src = data.image;
+            document.getElementById('timeoutPhotoArea').classList.remove('hidden');
+          }
           break;
       }
     }
@@ -980,8 +1050,18 @@
     // --- GAMEPLAY & SYNCHRONIZED TIMER ENGINE ---
     function sendStartGameSignal() {
       if (!gameState.isHost || !gameState.connections.length) return;
-      gameState.scanToken = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
-      broadcastToPlayers({type:'START_GAME',hidingDuration:gameState.hidingDuration,seekingDuration:gameState.seekingDuration,scanToken:gameState.scanToken,gameMode:gameState.gameMode});
+      const makeToken = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36) + Math.random().toString(36).slice(2));
+      const hiderTokens = [];
+      gameState.players.forEach(p => { if (p.role === 'HIDER') { p.scanToken = makeToken(); hiderTokens.push(p.scanToken); } });
+      gameState.scanToken = gameState.role === 'HIDER' ? makeToken() : makeToken();
+      if (gameState.role === 'HIDER') hiderTokens.push(gameState.scanToken);
+      gameState.allowedScanTokens = hiderTokens;
+      gameState.foundTokens = [];
+      gameState.connections.forEach(conn => {
+        const player = gameState.players.find(p => p.connection === conn);
+        const token = player && player.role === 'HIDER' ? player.scanToken : makeToken();
+        conn.send({type:'START_GAME',hidingDuration:gameState.hidingDuration,seekingDuration:gameState.seekingDuration,scanToken:token,allowedScanTokens:hiderTokens,gameMode:gameState.gameMode});
+      });
       startGamePhase(gameState.scanToken);
     }
     function broadcastToPlayers(packet, exceptConn) { gameState.connections.forEach(c=>{if(c!==exceptConn&&c.open)c.send(packet);}); }
@@ -1011,6 +1091,10 @@
 
       gameState.currentPhase = 'HIDING';
       gameState.timeRemaining = gameState.hidingDuration;
+      gameState.gameStartedAt = Date.now();
+      gameState.isFound = false;
+      gameState.allowedScanTokens = gameState.allowedScanTokens || [];
+      startPictureUnlockClock();
       updateFindPictureUI();
       gameState.isTimerPaused = false;
       gameState.seekerQuestionsUsed = 0;
@@ -1328,6 +1412,79 @@
       overlay.classList.toggle('hidden');
     }
 
+    function enterTimeoutRoom() {
+      if (gameState.isFound) return;
+      gameState.isFound = true;
+      stopQrScanner();
+      document.getElementById('pictureRequestNotice')?.classList.add('hidden');
+      showView('viewTimeout');
+      AudioEngine.playTone(1000, 'sine', 0.35);
+      logEvent('🎉 You were found! Welcome to the Timeout Room.');
+    }
+
+    function startPictureUnlockClock() {
+      clearInterval(gameState.pictureUnlockInterval);
+      const update = () => {
+        const elapsed = Date.now() - gameState.gameStartedAt;
+        const remaining = Math.max(0, 60000 - elapsed);
+        const button = document.getElementById('requestPictureBtn');
+        if (!button) return;
+        if (remaining <= 0) {
+          button.disabled = false;
+          button.classList.remove('opacity-50');
+          button.innerText = '📸 Ask Hiders for a picture';
+          document.getElementById('pictureRequestHelp').innerText = 'Unlocked! Ask the Hider team to send a picture.';
+          clearInterval(gameState.pictureUnlockInterval);
+        } else {
+          button.disabled = true;
+          button.classList.add('opacity-50');
+          button.innerText = '🔒 Unlocks in ' + Math.floor(remaining/60000) + ':' + String(Math.ceil((remaining%60000)/1000)).padStart(2,'0');
+        }
+      };
+      update();
+      gameState.pictureUnlockInterval = setInterval(update, 500);
+    }
+
+    function requestPlayerPicture() {
+      if (gameState.role !== 'SEEKER' || Date.now() - gameState.gameStartedAt < 60000) return;
+      sendGameMessage({type:'REQUEST_PICTURE'});
+      logEvent('📸 Picture request sent to the Hider team.');
+    }
+
+    async function sendRequestedPicture() {
+      const input = document.getElementById('pictureFileInput');
+      const file = input.files && input.files[0];
+      if (!file || !gameState.pictureRequestOpen) {
+        document.getElementById('pictureSendStatus').innerText = 'Choose a picture first.';
+        return;
+      }
+      if (!file.type.startsWith('image/')) return;
+      try {
+        const image = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const img = new Image();
+        img.src = image;
+        await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 640 / Math.max(img.width, img.height));
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.65);
+        sendGameMessage({type:'SEND_PICTURE', image:compressed});
+        gameState.pictureRequestOpen = false;
+        document.getElementById('pictureRequestNotice').classList.add('hidden');
+        document.getElementById('pictureSendStatus').innerText = 'Picture sent!';
+        logEvent('📸 Your picture was sent to the Seeker.');
+      } catch (err) {
+        document.getElementById('pictureSendStatus').innerText = 'Could not read that picture. Try another one.';
+      }
+    }
+
     function openFoundModal() {
       alert('Scan your friend’s secret QR picture to finish the round!');
     }
@@ -1400,10 +1557,11 @@
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' });
-        if (code && code.data === 'HIDESEEK:' + gameState.roomCode + ':' + gameState.scanToken) {
+        const scannedToken = code && code.data && code.data.startsWith('HIDESEEK:' + gameState.roomCode + ':') ? code.data.slice(('HIDESEEK:' + gameState.roomCode + ':').length) : '';
+        if (scannedToken && gameState.allowedScanTokens.includes(scannedToken)) {
           gameState.qrScannerActive = false;
           stopQrScanner();
-          if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: gameState.scanToken });
+          if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: scannedToken });
           AudioEngine.playTone(880, 'sine', .2);
           alert('🎉 You found your friend! Great scanning! The room will stay connected.');
           logEvent('A Hider was found! Players can continue in the room.');
