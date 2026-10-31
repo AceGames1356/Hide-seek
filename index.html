@@ -11,6 +11,8 @@
   <!-- QR code creation and camera scanning -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Font: Orbitron & Inter -->
@@ -280,6 +282,47 @@
       #viewLobby .tactical-border, #hostCard, #joinCard { padding: 11px !important; }
       #viewSeeker > div, #viewHider > div { padding: 10px !important; }
     }
+  </style>
+
+
+  <style id="jetlag-inspired-game-ui">
+    :root { --glow-a: rgba(129,140,248,.28); --glow-b: rgba(45,212,191,.18); }
+    body { background-attachment: fixed !important; }
+    header { position:sticky; top:0; box-shadow:0 8px 30px rgba(0,0,0,.18); }
+    header > div:first-child i { filter:drop-shadow(0 0 9px rgba(129,140,248,.8)); }
+    #viewLobby > div:first-child .text-5xl { display:inline-block; animation:floaty 3s ease-in-out infinite; filter:drop-shadow(0 10px 20px rgba(99,102,241,.35)); }
+    .kid-card, #hostCard, #joinCard, #viewWaiting > div, #viewTimeout > div {
+      backdrop-filter:blur(16px); background:linear-gradient(145deg,rgba(49,46,129,.52),rgba(30,41,59,.92)) !important;
+      border:1px solid rgba(199,210,254,.2) !important; box-shadow:0 18px 44px rgba(5,8,30,.28),inset 0 1px rgba(255,255,255,.08) !important;
+    }
+    #viewSeeker > div:first-child, #viewHider > div:first-child {
+      background:linear-gradient(135deg,rgba(49,46,129,.75),rgba(15,23,42,.96)) !important;
+      border:1px solid rgba(165,180,252,.25) !important; box-shadow:0 16px 36px rgba(0,0,0,.25) !important;
+    }
+    button { position:relative; overflow:hidden; }
+    button:not(:disabled)::after { content:""; position:absolute; inset:0; background:linear-gradient(110deg,transparent 20%,rgba(255,255,255,.12),transparent 75%); transform:translateX(-130%); transition:transform .55s ease; pointer-events:none; }
+    button:not(:disabled):hover::after { transform:translateX(130%); }
+    button:not(:disabled):active { transform:translateY(1px) scale(.97) !important; }
+    .power-card { transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; animation:cardIn .35s cubic-bezier(.2,.8,.2,1) both; }
+    .power-card:hover { transform:translateY(-3px) rotate(-.4deg); box-shadow:0 12px 24px rgba(0,0,0,.22); }
+    #liveMapPanel { display:none; animation:panelIn .4s ease both; }
+    #liveMapPanel.map-active { display:block; }
+    #liveMap { width:100%; height:260px; min-height:220px; border-radius:18px; overflow:hidden; border:1px solid rgba(165,180,252,.24); z-index:1; background:#0f172a; }
+    .leaflet-container { font-family:Inter,sans-serif; }
+    .leaflet-control-attribution { font-size:9px !important; }
+    .map-legend { display:flex; flex-wrap:wrap; gap:8px; font-size:11px; color:#cbd5e1; }
+    .map-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
+    .map-player-chip { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; background:rgba(15,23,42,.72); border:1px solid rgba(255,255,255,.08); font-size:11px; }
+    .map-player-chip .map-dot { flex:0 0 9px; }
+    .mode-pill { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(165,180,252,.22); background:rgba(99,102,241,.14); border-radius:999px; padding:5px 10px; font-size:10px; font-weight:900; color:#c7d2fe; }
+    .phase-progress { height:6px; overflow:hidden; border-radius:99px; background:rgba(255,255,255,.09); }
+    .phase-progress > span { display:block; height:100%; width:100%; transform-origin:left; background:linear-gradient(90deg,#818cf8,#2dd4bf); border-radius:99px; transition:width .5s linear; }
+    @keyframes floaty { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-8px) rotate(3deg)} }
+    @keyframes cardIn { from{opacity:0;transform:translateY(12px) scale(.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes panelIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes softPulse { 0%,100%{box-shadow:0 0 0 0 rgba(129,140,248,.18)} 50%{box-shadow:0 0 0 8px rgba(129,140,248,0)} }
+    #connectionStatus { animation:softPulse 3s ease-in-out infinite; }
+    @media(max-width:420px){ #liveMap{height:220px} .map-player-chip{font-size:10px;padding:7px} }
   </style>
 
   <style id="fair-play-rules">
@@ -693,11 +736,16 @@
       </div>
     </section>
 
-    <section id="liveMapPanel" class="kid-card space-y-2">
-      <div class="flex items-center justify-between"><div class="kid-title">🗺️ LIVE PLAYER MAP</div><span class="text-[10px] text-emerald-300">LOCATION SHARING</span></div>
-      <p class="kid-help">Your team can see the other players’ last shared positions. Everyone must allow location access. Only play in places where you have permission.</p>
-      <div id="locationStatus" class="text-xs text-slate-400">Location sharing starts when the round begins.</div>
-      <div id="liveLocationList" class="rounded-xl bg-slate-950/70 p-3 space-y-1"><p class="text-xs text-slate-400">No locations yet.</p></div>
+    <section id="liveMapPanel" class="kid-card space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div><div class="kid-title">🗺️ LIVE HUNT MAP</div><p class="kid-help">Your team's live positions update automatically.</p></div>
+        <span id="mapModePill" class="mode-pill">LIVE</span>
+      </div>
+      <div class="map-legend"><span><i class="map-dot" style="background:#fb7185"></i>Seekers</span><span><i class="map-dot" style="background:#34d399"></i>Hiders</span><span><i class="map-dot" style="background:#a5b4fc"></i>You</span></div>
+      <div id="liveMap" role="application" aria-label="Live player map"></div>
+      <div class="flex items-center justify-between gap-2"><div id="locationStatus" class="text-xs text-slate-400">Waiting for location permission…</div><button type="button" onclick="recenterLiveMap()" class="px-3 py-2 bg-indigo-500/20 border border-indigo-300/20 text-indigo-100 text-xs">◎ Recenter</button></div>
+      <div id="liveLocationList" class="grid grid-cols-2 gap-2"><p class="text-xs text-slate-400 col-span-2">Waiting for players to share their location…</p></div>
+      <p class="text-[10px] leading-relaxed text-slate-500">Location sharing is optional. Play only in safe, public or permitted places. Never use this to track anyone outside the game.</p>
     </section>
 
     <!-- VIEW 4: TIMEOUT ROOM FOR FOUND HIDERS -->
@@ -874,6 +922,9 @@
         document.getElementById(id).classList.add('hidden');
       });
       document.getElementById(viewId).classList.remove('hidden');
+      const mapPanel = document.getElementById('liveMapPanel');
+      if (mapPanel) mapPanel.classList.toggle('map-active', viewId === 'viewSeeker' || viewId === 'viewHider' || viewId === 'viewTimeout');
+      if (viewId === 'viewSeeker' || viewId === 'viewHider') setTimeout(() => { if (window.liveHuntMap) window.liveHuntMap.invalidateSize(); }, 120);
 
       if (viewId === 'viewSeeker' || viewId === 'viewHider' || viewId === 'viewTimeout') {
         document.getElementById('gameLogSection').classList.remove('hidden');
@@ -1146,7 +1197,7 @@
           break;
 
         case 'LOCATION_UPDATE':
-          gameState.locations[data.playerId || 'peer'] = {name:data.name || 'Player',role:data.role || 'HIDER',lat:Number(data.lat),lon:Number(data.lon),updatedAt:Date.now()};
+          gameState.locations[data.playerId || 'peer'] = {playerId:data.playerId || 'peer',name:data.name || 'Player',role:data.role || 'HIDER',lat:Number(data.lat),lon:Number(data.lon),updatedAt:Date.now(),isSelf:false};
           renderLiveMap();
           break;
         case 'MATCH_END':
@@ -1238,17 +1289,49 @@
     function startLiveLocationSharing() {
       if (!navigator.geolocation || gameState.locationWatchId !== null) return;
       gameState.locationWatchId = navigator.geolocation.watchPosition(pos => {
-        const packet = {type:'LOCATION_UPDATE',playerId:gameState.peer ? gameState.peer.id : gameState.playerName,name:gameState.displayName || gameState.playerName,role:gameState.role,lat:pos.coords.latitude,lon:pos.coords.longitude};
-        gameState.locations[packet.playerId] = {...packet,updatedAt:Date.now()};
+        const packet = {type:'LOCATION_UPDATE',playerId:gameState.peer ? gameState.peer.id : gameState.playerName,name:gameState.displayName || gameState.playerName,role:gameState.role,lat:pos.coords.latitude,lon:pos.coords.longitude,isSelf:true};
+        gameState.locations[packet.playerId] = {...packet,updatedAt:Date.now(),isSelf:true};
         if (Date.now() - gameState.lastLocationSentAt > 5000) { gameState.lastLocationSentAt=Date.now(); sendGameMessage(packet); }
         renderLiveMap();
       }, () => { const el=document.getElementById('locationStatus'); if(el) el.innerText='Location unavailable — allow location access to share your position.'; }, {enableHighAccuracy:true,maximumAge:5000,timeout:15000});
     }
+    let liveMapMarkers = {};
+    let liveMapSelfMarker = null;
+    function initLiveHuntMap() {
+      const el=document.getElementById('liveMap');
+      if(!el || !window.L || window.liveHuntMap) return;
+      window.liveHuntMap=L.map(el,{zoomControl:true,scrollWheelZoom:false}).setView([14.5995,120.9842],12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(window.liveHuntMap);
+    }
+    function recenterLiveMap() {
+      const own=Object.values(gameState.locations).find(p=>p.isSelf && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+      if(own && window.liveHuntMap) window.liveHuntMap.setView([own.lat,own.lon],15,{animate:true});
+    }
     function renderLiveMap() {
       const list=document.getElementById('liveLocationList'); if(!list) return;
-      const entries=Object.values(gameState.locations).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
-      list.innerHTML=entries.length ? entries.map(p=>'<div class="flex items-center justify-between gap-2 text-xs py-1"><span>'+String(p.name).replace(/[<>]/g,'')+' · '+p.role+'</span><a class="text-cyan-300 underline" target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat='+p.lat+'&mlon='+p.lon+'#map=16/'+p.lat+'/'+p.lon+'">View location ↗</a></div>').join('') : '<p class="text-xs text-slate-400">Waiting for players to share their location…</p>';
-      const status=document.getElementById('locationStatus'); if(status) status.innerText=entries.length+' live/last-known player location(s).';
+      const all=Object.values(gameState.locations).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      // Hiders get the useful tactical view: live Seeker positions. Seekers never get an un-found Hider's exact position.
+      const visible=gameState.role==='HIDER' ? all.filter(p=>p.role==='SEEKER'||p.isSelf) : all.filter(p=>p.role==='SEEKER'||p.isSelf||p.found);
+      const safeName=n=>String(n||'Player').replace(/[<>]/g,'').slice(0,20);
+      list.innerHTML=visible.length ? visible.map(p=>'<div class="map-player-chip"><i class="map-dot" style="background:'+(p.isSelf?'#a5b4fc':p.role==='SEEKER'?'#fb7185':'#34d399')+'"></i><span class="truncate">'+safeName(p.name)+'</span><span class="ml-auto text-slate-400">'+(p.isSelf?'YOU':p.role)+'</span></div>').join('') : '<p class="text-xs text-slate-400 col-span-2">No shared player locations yet.</p>';
+      const status=document.getElementById('locationStatus');
+      if(status) status.innerText=visible.length ? (gameState.role==='HIDER'?'You can see '+visible.filter(p=>p.role==='SEEKER').length+' Seeker position(s).':'Your location is shared. Hiders stay hidden on the Seeker map.') : 'Waiting for players to allow location sharing…';
+      initLiveHuntMap();
+      if(window.liveHuntMap) {
+        const activeIds=new Set();
+        visible.forEach((p,i)=>{
+          const id=p.playerId||p.name||('player'+i); activeIds.add(id);
+          const color=p.isSelf?'#a5b4fc':p.role==='SEEKER'?'#fb7185':'#34d399';
+          const icon=L.divIcon({className:'',html:'<div style="width:18px;height:18px;border:3px solid white;border-radius:50%;background:'+color+';box-shadow:0 0 0 5px '+color+'33,0 2px 8px #0008"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+          if(liveMapMarkers[id]) liveMapMarkers[id].setLatLng([p.lat,p.lon]).setIcon(icon);
+          else liveMapMarkers[id]=L.marker([p.lat,p.lon],{icon}).addTo(window.liveHuntMap).bindPopup('<b>'+safeName(p.name)+'</b><br>'+p.role);
+        });
+        Object.keys(liveMapMarkers).forEach(id=>{if(!activeIds.has(id)){window.liveHuntMap.removeLayer(liveMapMarkers[id]);delete liveMapMarkers[id];}});
+        const own=visible.find(p=>p.isSelf);
+        if(own && !window.liveMapCentered){window.liveHuntMap.setView([own.lat,own.lon],15);window.liveMapCentered=true;}
+        setTimeout(()=>window.liveHuntMap.invalidateSize(),80);
+      }
+      const pill=document.getElementById('mapModePill'); if(pill) pill.innerText=(gameState.gameMode||'HOUSE')+' MODE';
     }
 
     function startGamePhase(scanToken) {
@@ -1260,6 +1343,7 @@
       }
       startLiveLocationSharing();
       renderLiveMap();
+      setTimeout(()=>{ if(window.liveHuntMap) window.liveHuntMap.invalidateSize(); },250);
 
       // Display Host Controls if current player is host
       if (gameState.isHost) {
