@@ -329,6 +329,30 @@
     /* Both players share one timer; no host-only pause/reset advantage. */
     #seekerHostControls, #hiderHostControls { display: none !important; }
   #liveMap{min-height:300px;border-radius:18px;overflow:hidden}#zoneDrawBtn,#zoneFinishBtn{min-height:40px} .leaflet-tooltip{font-weight:900;letter-spacing:.08em;color:#be123c;border:1px solid #fb7185;background:#fff1f2}
+
+    /* Hide countdown: timer only. The hunt interface returns when seeking begins. */
+    #viewSeeker.phase-hiding, #viewHider.phase-hiding { min-height: calc(100dvh - 5rem); justify-content: center; }
+    .phase-hiding .phase-timer-card {
+      min-height: 72dvh; width: 100%; display: flex; align-items: center;
+      justify-content: center; border: 1px solid rgba(148,163,184,.2);
+      background: radial-gradient(circle at center, #172554 0%, #0b1224 58%, #070d19 100%);
+      border-radius: 28px; box-shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    .phase-hiding .phase-timer-card #seekerTimer,
+    .phase-hiding .phase-timer-card #hiderTimer { color: #f8fafc; font-weight: 900; }
+    .hunt-question {
+      min-height: 112px; display:flex; flex-direction:column; align-items:flex-start;
+      justify-content:center; gap:5px; padding:13px; text-align:left;
+      color:#e2e8f0; background:linear-gradient(145deg,#172033,#0b1220);
+      border:1px solid rgba(148,163,184,.2); border-radius:16px;
+      transition:transform .15s,border-color .15s,background .15s;
+    }
+    .hunt-question:active { transform:scale(.97); }
+    .hunt-question:hover { border-color:rgba(56,189,248,.65); background:#172b43; }
+    .hunt-question span { font-size:1.45rem; }
+    .hunt-question b { font-size:.82rem; line-height:1.2; }
+    .hunt-question small { color:#94a3b8; font-size:.68rem; }
+
 </style>
 
 </head>
@@ -467,7 +491,7 @@
     <section id="viewSeeker" class="flex-1 flex flex-col space-y-4 hidden pb-4">
       
       <!-- Top Tactical Header & Synchronized Timer -->
-      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3">
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3 phase-timer-card">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3">
             <div class="w-10 h-10 rounded-lg bg-seeker-500/10 border border-seeker-500 flex items-center justify-center text-seeker-500">
@@ -532,11 +556,13 @@
           </div>
 
           <!-- Quick Question Cards -->
-          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
-            <button onclick="sendQuestion('Are you inside or outside?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">🏠</span><b>Inside or outside?</b><span class="block text-[10px] text-slate-500 mt-1">Narrow down the setting</span></button>
-            <button onclick="sendQuestion('Are you near a road, path or entrance?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">🛣️</span><b>Nearby landmark</b><span class="block text-[10px] text-slate-500 mt-1">Road, path or entrance</span></button>
-            <button onclick="sendQuestion('Is the place you are hiding in mostly public or private?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">👥</span><b>Public or private?</b><span class="block text-[10px] text-slate-500 mt-1">Learn the area type</span></button>
-            <button onclick="sendQuestion('Can you see a building from where you are?')" class="bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 p-3 rounded-xl text-left transition-colors"><span class="block text-lg mb-1">👀</span><b>Visual clue</b><span class="block text-[10px] text-slate-500 mt-1">Spot something nearby</span></button>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+            <button onclick="sendQuestion('Are you indoors or outdoors?')" class="hunt-question"><span>🏠</span><b>Inside or outside?</b><small>Environment</small></button>
+            <button onclick="sendQuestion('Are you closer to a road, path, or entrance?')" class="hunt-question"><span>🛣️</span><b>Nearby route?</b><small>Roads and paths</small></button>
+            <button onclick="sendQuestion('Is your hiding place public or private?')" class="hunt-question"><span>👥</span><b>Public or private?</b><small>Area type</small></button>
+            <button onclick="sendQuestion('Can you see a building from your hiding spot?')" class="hunt-question"><span>🏢</span><b>Can you see a building?</b><small>Visual clue</small></button>
+            <button onclick="sendQuestion('Are you near something people can sit on?')" class="hunt-question"><span>🪑</span><b>Near a seat?</b><small>Nearby object</small></button>
+            <button onclick="sendQuestion('Are you near something taller than you?')" class="hunt-question"><span>🌳</span><b>Near something tall?</b><small>Nearby landmark</small></button>
           </div>
 
           <!-- Custom Question Box -->
@@ -585,7 +611,7 @@
     <section id="viewHider" class="flex-1 flex flex-col space-y-4 hidden pb-4">
       
       <!-- Top Tactical Header & Synchronized Timer -->
-      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3">
+      <div class="bg-slate-900 p-4 rounded-xl tactical-border flex flex-col space-y-3 phase-timer-card">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-3">
             <div class="w-10 h-10 rounded-lg bg-radar-500/10 border border-radar-500 flex items-center justify-center text-radar-500">
@@ -1573,6 +1599,28 @@
       const formatted = gameState.currentPhase === 'SEEKING' && gameState.seekingDuration === 0 ? 'UNTIL FOUND' : `${mins}:${secs}${gameState.isTimerPaused ? ' (PAUSED)' : ''}`;
 
       const isHiding = gameState.currentPhase === 'HIDING';
+      // During the hide countdown, show only a large, distraction-free timer.
+      ['viewSeeker','viewHider'].forEach((viewId, index) => {
+        const view = document.getElementById(viewId);
+        if (!view) return;
+        view.classList.toggle('phase-hiding', isHiding);
+        const timer = document.getElementById(index === 0 ? 'seekerTimer' : 'hiderTimer');
+        const card = timer && timer.closest('.phase-timer-card');
+        if (card) {
+          card.querySelectorAll('*').forEach(el => {
+            if (!isHiding) el.style.display = '';
+            else if (el === timer || el.contains(timer)) el.style.display = '';
+            else el.style.display = 'none';
+          });
+          if (timer) {
+            timer.style.display = isHiding ? 'block' : '';
+            timer.style.fontSize = isHiding ? 'clamp(4.5rem, 22vw, 8rem)' : '';
+            timer.style.lineHeight = isHiding ? '1' : '';
+            timer.style.letterSpacing = isHiding ? '-.06em' : '';
+            timer.style.textAlign = 'center';
+          }
+        }
+      });
       const badgeText = isHiding ? 'HIDING PHASE' : 'SEEKING PHASE';
       const badgeClass = isHiding 
         ? 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold uppercase tracking-wider'
