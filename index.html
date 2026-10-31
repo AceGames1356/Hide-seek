@@ -1561,7 +1561,8 @@
         if (scannedToken && gameState.allowedScanTokens.includes(scannedToken)) {
           gameState.qrScannerActive = false;
           stopQrScanner();
-          if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: scannedToken });
+          if (gameState.isHost) handleIncomingData({type:'FOUND_TAG',scanToken:scannedToken}, null);
+          else if (gameState.connection) sendGameMessage({ type: 'FOUND_TAG', scanToken: scannedToken });
           AudioEngine.playTone(880, 'sine', .2);
           alert('🎉 You found your friend! Great scanning! The room will stay connected.');
           logEvent('A Hider was found! Players can continue in the room.');
