@@ -578,7 +578,7 @@
           </div>
         </div>
 
-        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HOUSE">🏠 House — 5 minutes</option><option value="VILLAGE">🏘️ Village — 30 minutes</option><option value="CITY">🏙️ City — 1 hour 15 minutes</option><option value="COUNTRY">🌎 Country — 5 hours</option><option value="WORLD">🌐 World — 15 hours</option></select><p class="kid-help">Every mode uses QR confirmation, live location sharing, map searches, questions and strategy cards.</p></div>
+        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HOUSE">House — 5 minutes</option><option value="VILLAGE">🏘️ Village — 30 minutes</option><option value="CITY">🏙️ City — 1 hour 15 minutes</option><option value="COUNTRY">🌎 Country — 5 hours</option><option value="WORLD">🌐 World — 15 hours</option></select><p class="kid-help">Every mode uses QR confirmation, live location sharing, map searches, questions and strategy cards.</p></div>
       <div class="kid-card space-y-2">
         <div class="kid-title">⏱️ MODE LENGTH</div>
         <p id="modeDurationHelp" class="kid-help">House lasts 5 minutes. Longer games pause automatically from 8:00 PM until 6:00 AM so everyone can sleep.</p>
@@ -1407,7 +1407,7 @@
           updateFindPictureUI();
           gameState.timeRemaining = data.timeRemaining;
           AudioEngine.playPhaseAlert();
-          logEvent(`🚨 PHASE CHANGED TO: ${data.newPhase} PHASE!`);
+          logEvent(`PHASE CHANGED TO: ${data.newPhase} PHASE!`);
           renderTimerUI();
           break;
 
@@ -1435,7 +1435,7 @@
             gameState.timeRemaining = Math.max(1, Math.min(gameState.seekingDuration + 60, gameState.timeRemaining + Number(data.amount || 0)));
             broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused});
             renderTimerUI();
-            logEvent(data.amount > 0 ? '🎁 Hider bonus time added!' : '⏳ A Hider card stole time from the Seekers!');
+            logEvent(data.amount > 0 ? 'Hider bonus time added!' : 'A Hider card stole time from the Seekers!');
           }
           break;
 
@@ -1476,7 +1476,7 @@
         case 'DECOY_TRIGGERED':
           if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') break;
           AudioEngine.playDecoySound();
-          logEvent(`⚠️ DECOY SOUND PLAYED BY HIDER!`);
+          logEvent(`DECOY SOUND PLAYED BY HIDER!`);
           break;
 
         case 'LOCATION_UPDATE':
@@ -1488,7 +1488,7 @@
             gameState.crossedAreas=data.areas.filter(a=>a&&Array.isArray(a.points)&&a.points.length>=3).slice(0,40);
             renderCrossedAreas();
             if(gameState.isHost)broadcastToPlayers({type:'CROSSED_AREAS',areas:gameState.crossedAreas},sourceConn);
-            logEvent('🗺️ The map’s searched areas were updated.');
+            logEvent('The map’s searched areas were updated.');
           }
           break;
         case 'MATCH_END':
@@ -1515,7 +1515,7 @@
           break;
 
         case 'PLAYER_FOUND':
-          logEvent('🎉 ' + (data.playerName || 'A Hider') + ' was found and moved to the Timeout Room.');
+          logEvent('' + (data.playerName || 'A Hider') + ' was found and moved to the Timeout Room.');
           break;
 
         case 'REQUEST_PICTURE':
@@ -1523,7 +1523,7 @@
             gameState.pictureRequestOpen = true;
             document.getElementById('pictureRequestNotice').classList.remove('hidden');
             document.getElementById('pictureSendStatus').innerText = 'You have a picture request. Choose a photo to send.';
-            logEvent('📸 The Seeker requested a picture.');
+            logEvent('The Seeker requested a picture.');
           }
           break;
 
@@ -1531,7 +1531,7 @@
           if (gameState.role === 'SEEKER' && typeof data.image === 'string' && data.image.startsWith('data:image/')) {
             document.getElementById('receivedPicture').src = data.image;
             document.getElementById('receivedPictureArea').classList.remove('hidden');
-            logEvent('📸 A Hider sent a picture.');
+            logEvent('A Hider sent a picture.');
           } else if (gameState.role === 'HIDER' && gameState.isFound) {
             document.getElementById('timeoutReceivedPhoto').src = data.image;
             document.getElementById('timeoutPhotoArea').classList.remove('hidden');
@@ -1631,7 +1631,7 @@
       if(zoneDraftLayer&&window.liveHuntMap){window.liveHuntMap.removeLayer(zoneDraftLayer);zoneDraftLayer=null;}
       if(window.liveHuntMap)window.liveHuntMap.doubleClickZoom.enable();
       sendCrossedAreas(areas);updateZoneDrawUI();
-      logEvent('🗺️ Area crossed out on the map.');
+      logEvent('Area crossed out on the map.');
     }
     function undoZonePoint(){
       if(gameState.zoneDrawing&&gameState.zoneDraft.length){gameState.zoneDraft.pop();if(zoneDraftLayer&&window.liveHuntMap)window.liveHuntMap.removeLayer(zoneDraftLayer);zoneDraftLayer=null;if(gameState.zoneDraft.length>1)zoneDraftLayer=L.polyline(gameState.zoneDraft,{color:'#fb7185',weight:4,dashArray:'7 7'}).addTo(window.liveHuntMap);return;}
@@ -1751,7 +1751,7 @@
         overlay.id='sleepLockOverlay';
         overlay.className='hidden fixed inset-0 z-[9999] flex items-center justify-center p-5';
         overlay.style.cssText='background:rgba(2,6,23,.94);backdrop-filter:blur(14px)';
-        overlay.innerHTML='<div class="kid-card max-w-sm w-full text-center space-y-4 p-6"><div class="text-6xl">🌙</div><div class="text-2xl font-black text-indigo-200">Night break!</div><p class="text-sm text-slate-300">The game is paused so everyone can sleep. It will unlock at 6:00 AM.</p><div class="text-xs text-indigo-200 font-bold">GAME LOCKED · 8 PM – 6 AM</div></div>';
+        overlay.innerHTML='<div class="kid-card max-w-sm w-full text-center space-y-4 p-6"><div class="text-4xl text-indigo-300"><i class="fa-solid fa-moon"></i></div><div class="text-2xl font-black text-indigo-200">Night break!</div><p class="text-sm text-slate-300">The game is paused so everyone can sleep. It will unlock at 6:00 AM.</p><div class="text-xs text-indigo-200 font-bold">GAME LOCKED · 8 PM – 6 AM</div></div>';
         document.body.appendChild(overlay);
       }
       const shouldLock=gameState.gameMode!=='HOUSE' && gameState.isSleepLocked;
@@ -1767,7 +1767,7 @@
             gameState.isSleepLocked=sleepNow;
             updateSleepLockUI();
             broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked});
-            logEvent(sleepNow ? '🌙 Night break started. The game will resume at 6:00 AM.' : '☀️ Good morning! The game has resumed.');
+            logEvent(sleepNow ? 'Night break started. The game will resume at 6:00 AM.' : 'Good morning! The game has resumed.');
           }
           if (sleepNow) return;
         }
@@ -1899,14 +1899,14 @@
 
     // --- OTHER ACTIONS ---
     function sendQuestion(text) {
-      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
+      if (gameState.isSleepLocked) return logEvent('The game is paused for the night.');
       if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('Questions unlock when seeking starts.');
         return;
       }
       if (Date.now() < gameState.seekerQuestionBlockedUntil) {
-        logEvent('⚡ Your question system is jammed by a Hider card!');
+        logEvent('Your question system is jammed by a Hider card!');
         return;
       }
       if (gameState.seekerQuestionsUsed >= 8) {
@@ -1942,13 +1942,13 @@
 
     function awardHiderCard() {
       if (gameState.hiderCards.length >= 6) {
-        logEvent('🎴 Your card hand is full! Use a card first.');
+        logEvent('Your card hand is full! Use a card first.');
         return;
       }
       const card = HIDER_POWER_CARDS[Math.floor(Math.random() * HIDER_POWER_CARDS.length)];
       gameState.hiderCards.push(card.id);
       renderHiderCards();
-      logEvent('🎴 Card earned: ' + card.name + '!');
+      logEvent('Card earned: ' + card.name + '!');
     }
 
     function renderHiderCards() {
@@ -1976,7 +1976,7 @@
     }
 
     function useHiderCard(index) {
-      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
+      if (gameState.isSleepLocked) return logEvent('The game is paused for the night.');
       if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') return;
       const cardId = gameState.hiderCards[index];
       const card = HIDER_POWER_CARDS.find(item => item.id === cardId);
@@ -1994,27 +1994,27 @@
         }
       } else if (card.action === 'decoy') {
         gameState.hiderExtraDecoys++;
-        logEvent('🎭 You gained one extra decoy sound!');
+        logEvent('You gained one extra decoy sound!');
       } else {
         sendGameMessage({type:'CARD_EFFECT',effect:card.action,duration:card.duration});
       }
-      logEvent('✨ Used ' + card.name + '!');
+      logEvent('Used ' + card.name + '!');
     }
 
     function applySeekerCardEffect(effect,duration) {
       if (effect === 'jam') {
         gameState.seekerQuestionBlockedUntil = Math.max(gameState.seekerQuestionBlockedUntil,Date.now() + Number(duration || 15000));
-        logEvent('📵 QUESTION JAM! Hiders blocked your questions temporarily.');
+        logEvent('QUESTION JAM! Hiders blocked your questions temporarily.');
       } else if (effect === 'glitch') {
         gameState.seekerScannerBlockedUntil = Math.max(gameState.seekerScannerBlockedUntil,Date.now() + Number(duration || 12000));
         stopQrScanner();
         document.getElementById('scanStatus').innerText = 'Scanner glitch! Hiders scrambled your scanner.';
-        logEvent('📷 SCANNER GLITCH! You cannot scan for a short time.');
+        logEvent('SCANNER GLITCH! You cannot scan for a short time.');
       }
     }
 
     function sendHiderAnswer(ansText) {
-      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
+      if (gameState.isSleepLocked) return logEvent('The game is paused for the night.');
       if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('You can answer once the seeking phase begins.');
@@ -2081,7 +2081,7 @@
       document.getElementById('pictureRequestNotice')?.classList.add('hidden');
       showView('viewTimeout');
       AudioEngine.playTone(1000, 'sine', 0.35);
-      logEvent('🎉 You were found! Welcome to the Timeout Room.');
+      logEvent('You were found! Welcome to the Timeout Room.');
     }
 
     function startPictureUnlockClock() {
@@ -2111,7 +2111,7 @@
     function requestPlayerPicture() {
       if (gameState.role !== 'SEEKER' || Date.now() - gameState.gameStartedAt < 60000) return;
       sendGameMessage({type:'REQUEST_PICTURE'});
-      logEvent('📸 Picture request sent to the Hider team.');
+      logEvent('Picture request sent to the Hider team.');
     }
 
     function openPictureCamera() {
@@ -2173,7 +2173,7 @@
         gameState.pictureRequestOpen = false;
         document.getElementById('pictureRequestNotice').classList.add('hidden');
         status.innerText = 'Picture sent!';
-        logEvent('📸 Your picture was sent.');
+        logEvent('Your picture was sent.');
       } catch (err) {
         console.error('Picture sending failed:', err);
         status.innerText = 'Could not prepare the picture. Please try another photo.';
@@ -2221,7 +2221,7 @@
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING' || !gameState.scanToken) return;
       if (Date.now() < gameState.seekerScannerBlockedUntil) {
         const seconds = Math.ceil((gameState.seekerScannerBlockedUntil - Date.now()) / 1000);
-        document.getElementById('scanStatus').innerText = '⚡ Scanner glitch! Try again in ' + seconds + ' seconds.';
+        document.getElementById('scanStatus').innerText = 'Scanner glitch! Try again in ' + seconds + ' seconds.';
         return;
       }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
