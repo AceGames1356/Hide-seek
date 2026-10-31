@@ -896,7 +896,7 @@
 
     const gameModeSelect = document.getElementById('gameModeSelect');
     function updateModeDurationPreview() {
-      const settings={HOUSE:{hide:300,seek:300},VILLAGE:{hide:1800,seek:900},CITY:{hide:4500,seek:0},COUNTRY:{hide:18000,seek:0},WORLD:{hide:54000,seek:0}};
+      const settings={HOUSE:{hide:300,seek:600},VILLAGE:{hide:1800,seek:3600},CITY:{hide:4500,seek:0},COUNTRY:{hide:18000,seek:0},WORLD:{hide:54000,seek:0}};
       const mode=settings[gameModeSelect.value]||settings.HOUSE;
       const formatDuration=n=>{const h=Math.floor(n/3600),m=Math.floor((n%3600)/60);return h ? (h+'h'+(m?' '+m+'m':'')) : (m+' min');};
       const label=document.getElementById('findingDurationLabel');
@@ -904,7 +904,7 @@
       const hideLabel=document.getElementById('hidingDurationLabel');
       if(hideLabel) hideLabel.innerText=formatDuration(mode.hide);
       if(label) label.innerText=mode.seek===0?'Until found':formatDuration(mode.seek);
-      if(help) help.innerText=gameModeSelect.value==='HOUSE' ? 'Hide for 5 minutes, then find the hider within 5 minutes.' : gameModeSelect.value==='VILLAGE' ? 'Hide for 30 minutes, then find the hider within 15 minutes.' : 'Hide for '+formatDuration(mode.hide)+', then the seeker has no time limit. Game pauses from 8:00 PM to 6:00 AM (local device time).';
+      if(help) help.innerText=gameModeSelect.value==='HOUSE' ? 'Hide for 5 minutes, then find the hider within 10 minutes.' : gameModeSelect.value==='VILLAGE' ? 'Hide for 30 minutes, then find the hider within 1 hour.' : 'Hide for '+formatDuration(mode.hide)+', then the seeker has no time limit. Game pauses from 8:00 PM to 6:00 AM (local device time).';
     }
     if(gameModeSelect) { gameModeSelect.addEventListener('change',updateModeDurationPreview); updateModeDurationPreview(); }
 
@@ -970,8 +970,8 @@
       gameState.playerName = document.getElementById('playerNameInput').value || 'Host-Agent';
       gameState.gameMode = document.getElementById('gameModeSelect').value;
       const modeSettings = {
-        HOUSE: {hide:300, seek:300},
-        VILLAGE: {hide:1800, seek:900},
+        HOUSE: {hide:300, seek:600},
+        VILLAGE: {hide:1800, seek:3600},
         CITY: {hide:4500, seek:0},
         COUNTRY: {hide:18000, seek:0},
         WORLD: {hide:54000, seek:0}
