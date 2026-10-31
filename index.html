@@ -1429,7 +1429,7 @@
         const remaining = Math.max(0, 60000 - elapsed);
         const button = document.getElementById('requestPictureBtn');
         if (!button) return;
-        if (remaining <= 0 && gameState.currentPhase === 'SEEKING') {
+        if (remaining <= 0) {
           button.disabled = false;
           button.classList.remove('opacity-50');
           button.innerText = '📸 Ask Hiders for a picture';
@@ -1438,8 +1438,8 @@
         } else {
           button.disabled = true;
           button.classList.add('opacity-50');
-          button.innerText = remaining > 0 ? '🔒 Unlocks in ' + Math.floor(remaining/60000) + ':' + String(Math.ceil((remaining%60000)/1000)).padStart(2,'0') : '🔒 Available in seeking phase';
-          document.getElementById('pictureRequestHelp').innerText = remaining > 0 ? 'Picture requests unlock 1 minute after the game starts.' : 'Unlocked after 1 minute. Wait until the seeking phase begins.';
+          button.innerText = '🔒 Unlocks in ' + Math.floor(remaining/60000) + ':' + String(Math.ceil((remaining%60000)/1000)).padStart(2,'0');
+          document.getElementById('pictureRequestHelp').innerText = 'Picture requests unlock 1 minute after the game starts.';
         }
       };
       update();
@@ -1447,7 +1447,7 @@
     }
 
     function requestPlayerPicture() {
-      if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING' || Date.now() - gameState.gameStartedAt < 60000) return;
+      if (gameState.role !== 'SEEKER' || Date.now() - gameState.gameStartedAt < 60000) return;
       sendGameMessage({type:'REQUEST_PICTURE'});
       logEvent('📸 Picture request sent to the Hider team.');
     }
