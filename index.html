@@ -11,6 +11,9 @@
   <!-- QR code creation and camera scanning -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <!-- Local image safety screening (runs in the browser; photos are not sent to a moderation server) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Font: Orbitron & Inter -->
@@ -544,7 +547,7 @@
 
         <div id="pictureRequestNotice" class="kid-card space-y-3 hidden">
           <div class="kid-title">📸 The Seeker asked for a picture!</div>
-          <p class="kid-help">Take or choose a safe picture to share. Don’t photograph private information or anything unsafe.</p>
+          <p class="kid-help">Only send safe, kid-friendly pictures. The game checks images on your device before sending and blocks detected sexual content. Never share private information.</p>
           <input id="pictureFileInput" type="file" accept="image/*" capture="environment" class="w-full text-sm text-slate-300">
           <button onclick="sendRequestedPicture()" class="w-full bg-violet-500 text-white py-3">Send picture</button>
           <p id="pictureSendStatus" class="kid-help"></p>
@@ -732,6 +735,8 @@
       gameStartedAt: 0,
       pictureUnlockInterval: null,
       pictureRequestOpen: false,
+      imageSafetyModel: null,
+      imageSafetyModelPromise: null,
     };
 
     // Initialize random 4-digit ID generator
@@ -1452,14 +1457,40 @@
       logEvent('📸 Picture request sent to the Hider team.');
     }
 
+    async function loadImageSafetyModel() {
+      if (gameState.imageSafetyModel) return gameState.imageSafetyModel;
+      if (!gameState.imageSafetyModelPromise) {
+        gameState.imageSafetyModelPromise = (async () => {
+          if (!window.tf || !window.nsfwjs) throw new Error('Image safety checker unavailable');
+          await window.tf.ready();
+          return await window.nsfwjs.load();
+        })();
+      }
+      gameState.imageSafetyModel = await gameState.imageSafetyModelPromise;
+      return gameState.imageSafetyModel;
+    }
+
     async function sendRequestedPicture() {
+      const status = document.getElementById('pictureSendStatus');
       const input = document.getElementById('pictureFileInput');
       const file = input.files && input.files[0];
       if (!file || !gameState.pictureRequestOpen) {
-        document.getElementById('pictureSendStatus').innerText = 'Choose a picture first.';
+        status.innerText = 'Choose a picture first.';
         return;
       }
-      if (!file.type.startsWith('image/')) return;
+      if (!file.type.startsWith('image/')) {
+        status.innerText = 'That file is not an image. Choose a photo instead.';
+        input.value = '';
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        status.innerText = 'That picture is too large. Please choose one under 8 MB.';
+        input.value = '';
+        return;
+      }
+      status.innerText = '🔎 Checking your picture for unsafe content on this device...';
+      const sendButton = document.querySelector('#pictureRequestNotice button');
+      if (sendButton) sendButton.disabled = true;
       try {
         const image = await new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -1470,6 +1501,17 @@
         const img = new Image();
         img.src = image;
         await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+        const model = await loadImageSafetyModel();
+        const predictions = await model.classify(img);
+        const unsafe = predictions.some(p =>
+          (p.className === 'Porn' || p.className === 'Hentai') && p.probability >= 0.10 ||
+          p.className === 'Sexy' && p.probability >= 0.20
+        );
+        if (unsafe) {
+          status.innerText = '🚫 This picture may not be kid-friendly, so it was blocked. Choose a different picture.';
+          input.value = '';
+          return;
+        }
         const canvas = document.createElement('canvas');
         const scale = Math.min(1, 640 / Math.max(img.width, img.height));
         canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -1479,10 +1521,13 @@
         sendGameMessage({type:'SEND_PICTURE', image:compressed});
         gameState.pictureRequestOpen = false;
         document.getElementById('pictureRequestNotice').classList.add('hidden');
-        document.getElementById('pictureSendStatus').innerText = 'Picture sent!';
-        logEvent('📸 Your picture was sent to the Seeker.');
+        status.innerText = 'Picture sent!';
+        logEvent('📸 Your picture passed the safety check and was sent.');
       } catch (err) {
-        document.getElementById('pictureSendStatus').innerText = 'Could not read that picture. Try another one.';
+        console.error('Image safety check failed:', err);
+        status.innerText = '⚠️ Safety check could not run, so the picture was NOT sent. Try again when connected to the internet.';
+      } finally {
+        if (sendButton) sendButton.disabled = false;
       }
     }
 
