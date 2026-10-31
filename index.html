@@ -11,9 +11,6 @@
   <!-- QR code creation and camera scanning -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <!-- Local image safety screening (runs in the browser; photos are not sent to a moderation server) -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/nsfwjs@2.4.2/dist/nsfwjs.min.js"></script>
   <!-- FontAwesome for Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Font: Orbitron & Inter -->
@@ -1616,19 +1613,6 @@
       logEvent('📸 Picture request sent to the Hider team.');
     }
 
-    async function loadImageSafetyModel() {
-      if (gameState.imageSafetyModel) return gameState.imageSafetyModel;
-      if (!gameState.imageSafetyModelPromise) {
-        gameState.imageSafetyModelPromise = (async () => {
-          if (!window.tf || !window.nsfwjs) throw new Error('Image safety checker unavailable');
-          await window.tf.ready();
-          return await window.nsfwjs.load();
-        })();
-      }
-      gameState.imageSafetyModel = await gameState.imageSafetyModelPromise;
-      return gameState.imageSafetyModel;
-    }
-
     function openPictureCamera() {
       if (!gameState.pictureRequestOpen) return;
       const input = document.getElementById('pictureFileInput');
@@ -1654,15 +1638,18 @@
       }
       if (!file.type.startsWith('image/')) {
         status.innerText = 'That file is not an image. Choose a photo instead.';
-        cameraInput.value = ''; galleryInput.value = '';
+        cameraInput.value = '';
+        galleryInput.value = '';
         return;
       }
       if (file.size > 8 * 1024 * 1024) {
         status.innerText = 'That picture is too large. Please choose one under 8 MB.';
-        input.value = '';
+        cameraInput.value = '';
+        galleryInput.value = '';
         return;
       }
-      status.innerText = '🔎 Checking your picture for unsafe content on this device...';
+
+      status.innerText = 'Preparing your picture...';
       const sendButtons = document.querySelectorAll('#pictureRequestNotice button');
       sendButtons.forEach(button => button.disabled = true);
       try {
@@ -1675,17 +1662,6 @@
         const img = new Image();
         img.src = image;
         await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
-        const model = await loadImageSafetyModel();
-        const predictions = await model.classify(img);
-        const unsafe = predictions.some(p =>
-          (p.className === 'Porn' || p.className === 'Hentai') && p.probability >= 0.10 ||
-          p.className === 'Sexy' && p.probability >= 0.20
-        );
-        if (unsafe) {
-          status.innerText = '🚫 This picture may not be kid-friendly, so it was blocked. Choose a different picture.';
-          cameraInput.value = ''; galleryInput.value = '';
-          return;
-        }
         const canvas = document.createElement('canvas');
         const scale = Math.min(1, 640 / Math.max(img.width, img.height));
         canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -1696,12 +1672,14 @@
         gameState.pictureRequestOpen = false;
         document.getElementById('pictureRequestNotice').classList.add('hidden');
         status.innerText = 'Picture sent!';
-        logEvent('📸 Your picture passed the safety check and was sent.');
+        logEvent('📸 Your picture was sent.');
       } catch (err) {
-        console.error('Image safety check failed:', err);
-        status.innerText = '⚠️ Safety check could not run, so the picture was NOT sent. Try again when connected to the internet.';
+        console.error('Picture sending failed:', err);
+        status.innerText = 'Could not prepare the picture. Please try another photo.';
       } finally {
         sendButtons.forEach(button => button.disabled = false);
+        cameraInput.value = '';
+        galleryInput.value = '';
       }
     }
 
