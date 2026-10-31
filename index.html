@@ -403,7 +403,7 @@
       <div class="kid-card space-y-2">
         <div class="kid-title">⏱️ MODE LENGTH</div>
         <p id="modeDurationHelp" class="kid-help">House lasts 5 minutes. Longer games pause automatically from 8:00 PM until 6:00 AM so everyone can sleep.</p>
-        <div class="flex items-center justify-between text-xs"><span class="text-slate-400">Hiding phase</span><b>1 minute</b></div>
+        <div class="flex items-center justify-between text-xs"><span class="text-slate-400">Hiding phase</span><b id="hidingDurationLabel">5 minutes</b></div>
         <div class="flex items-center justify-between text-xs"><span class="text-slate-400">Finding phase</span><b id="findingDurationLabel">4 minutes</b></div>
       </div>
 
@@ -896,13 +896,15 @@
 
     const gameModeSelect = document.getElementById('gameModeSelect');
     function updateModeDurationPreview() {
-      const seconds={HOUSE:300,VILLAGE:1800,CITY:4500,COUNTRY:18000,WORLD:54000}[gameModeSelect.value]||300;
-      const hide=Math.min(60,seconds), seek=seconds-hide;
+      const settings={HOUSE:{hide:300,seek:300},VILLAGE:{hide:1800,seek:900},CITY:{hide:4500,seek:0},COUNTRY:{hide:18000,seek:0},WORLD:{hide:54000,seek:0}};
+      const mode=settings[gameModeSelect.value]||settings.HOUSE;
       const formatDuration=n=>{const h=Math.floor(n/3600),m=Math.floor((n%3600)/60);return h ? (h+'h'+(m?' '+m+'m':'')) : (m+' min');};
       const label=document.getElementById('findingDurationLabel');
       const help=document.getElementById('modeDurationHelp');
-      if(label) label.innerText=formatDuration(seek);
-      if(help) help.innerText=gameModeSelect.value==='HOUSE' ? 'House is a quick 5-minute round. Sleep lock is not used.' : 'Total game time: '+formatDuration(seconds)+'. Game automatically locks from 8:00 PM to 6:00 AM (local device time).';
+      const hideLabel=document.getElementById('hidingDurationLabel');
+      if(hideLabel) hideLabel.innerText=formatDuration(mode.hide);
+      if(label) label.innerText=mode.seek===0?'Until found':formatDuration(mode.seek);
+      if(help) help.innerText=gameModeSelect.value==='HOUSE' ? 'Hide for 5 minutes, then find the hider within 5 minutes.' : gameModeSelect.value==='VILLAGE' ? 'Hide for 30 minutes, then find the hider within 15 minutes.' : 'Hide for '+formatDuration(mode.hide)+', then the seeker has no time limit. Game pauses from 8:00 PM to 6:00 AM (local device time).';
     }
     if(gameModeSelect) { gameModeSelect.addEventListener('change',updateModeDurationPreview); updateModeDurationPreview(); }
 
@@ -967,10 +969,16 @@
       gameState.roomCode = generateCode();
       gameState.playerName = document.getElementById('playerNameInput').value || 'Host-Agent';
       gameState.gameMode = document.getElementById('gameModeSelect').value;
-      const modeSeconds = {HOUSE:300,VILLAGE:1800,CITY:4500,COUNTRY:18000,WORLD:54000};
-      const totalSeconds = modeSeconds[gameState.gameMode] || 300;
-      gameState.hidingDuration = Math.min(60,totalSeconds);
-      gameState.seekingDuration = Math.max(1,totalSeconds-gameState.hidingDuration);
+      const modeSettings = {
+        HOUSE: {hide:300, seek:300},
+        VILLAGE: {hide:1800, seek:900},
+        CITY: {hide:4500, seek:0},
+        COUNTRY: {hide:18000, seek:0},
+        WORLD: {hide:54000, seek:0}
+      };
+      const selectedMode = modeSettings[gameState.gameMode] || modeSettings.HOUSE;
+      gameState.hidingDuration = selectedMode.hide;
+      gameState.seekingDuration = selectedMode.seek;
       gameState.isSleepLocked = false;
       
       document.getElementById('generatedRoomCode').innerText = gameState.roomCode;
@@ -1415,6 +1423,12 @@
           if (sleepNow) return;
         }
         if (gameState.isTimerPaused) return;
+        const unlimitedSeeking = gameState.currentPhase === 'SEEKING' && gameState.seekingDuration === 0;
+        if (unlimitedSeeking) {
+          broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:0,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked});
+          renderTimerUI();
+          return;
+        }
         gameState.timeRemaining--;
         broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked});
         renderTimerUI();
@@ -1485,7 +1499,7 @@
     function renderTimerUI() {
       const mins = Math.floor(gameState.timeRemaining / 60).toString().padStart(2, '0');
       const secs = (gameState.timeRemaining % 60).toString().padStart(2, '0');
-      const formatted = `${mins}:${secs}${gameState.isTimerPaused ? ' (PAUSED)' : ''}`;
+      const formatted = gameState.currentPhase === 'SEEKING' && gameState.seekingDuration === 0 ? 'UNTIL FOUND' : `${mins}:${secs}${gameState.isTimerPaused ? ' (PAUSED)' : ''}`;
 
       const isHiding = gameState.currentPhase === 'HIDING';
       const badgeText = isHiding ? 'HIDING PHASE' : 'SEEKING PHASE';
