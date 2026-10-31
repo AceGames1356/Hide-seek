@@ -399,31 +399,13 @@
           </div>
         </div>
 
-        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HOUSE">🏠 House — QR Hide & Seek</option><option value="CITY">🏙️ City — Urban Hunt</option><option value="COUNTRY">🌎 Country — Regional Hunt</option><option value="WORLD">🌐 World — Global Hunt</option></select><p class="kid-help">Every mode uses QR confirmation, live location sharing, map searches, questions and strategy cards.</p></div>
-      <!-- Phase Duration Controls for Host -->
-        <div class="space-y-2">
-          <label class="block text-xs font-mono text-slate-400 uppercase">GAME TIME</label>
-          <div class="grid grid-cols-2 gap-3 font-mono text-xs">
-            <div>
-              <span class="text-[10px] text-slate-500 block mb-1">Hiding time</span>
-              <select id="hideDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
-                <option value="30">30 Seconds</option>
-                <option value="60" selected>1 Minute</option>
-                <option value="120">2 Minutes</option>
-                <option value="180">3 Minutes</option>
-              </select>
-            </div>
-            <div>
-              <span class="text-[10px] text-slate-500 block mb-1">Finding time</span>
-              <select id="seekDurationSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-radar-500">
-                <option value="180">3 Minutes</option>
-                <option value="300" selected>5 Minutes</option>
-                <option value="600">10 Minutes</option>
-                <option value="900">15 Minutes</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <div class="space-y-2"><label class="block text-xs text-slate-300">GAME MODE</label><select id="gameModeSelect" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3"><option value="HOUSE">🏠 House — 5 minutes</option><option value="VILLAGE">🏘️ Village — 30 minutes</option><option value="CITY">🏙️ City — 1 hour 15 minutes</option><option value="COUNTRY">🌎 Country — 5 hours</option><option value="WORLD">🌐 World — 15 hours</option></select><p class="kid-help">Every mode uses QR confirmation, live location sharing, map searches, questions and strategy cards.</p></div>
+      <div class="kid-card space-y-2">
+        <div class="kid-title">⏱️ MODE LENGTH</div>
+        <p id="modeDurationHelp" class="kid-help">House lasts 5 minutes. Longer games pause automatically from 8:00 PM until 6:00 AM so everyone can sleep.</p>
+        <div class="flex items-center justify-between text-xs"><span class="text-slate-400">Hiding phase</span><b>1 minute</b></div>
+        <div class="flex items-center justify-between text-xs"><span class="text-slate-400">Finding phase</span><b id="findingDurationLabel">4 minutes</b></div>
+      </div>
 
         <button onclick="initializeHost()" class="w-full bg-radar-500 hover:bg-radar-600 text-slate-950 font-mono font-bold py-3.5 rounded-lg shadow-lg shadow-radar-500/20 transition-all uppercase tracking-wider flex items-center justify-center space-x-2">
           <i class="fa-solid fa-satellite-dish"></i>
@@ -896,6 +878,7 @@
       lastDecoyAt: 0,
       scanToken: '',
       gameMode: 'HOUSE',
+      isSleepLocked: false,
       locations: {}, locationWatchId: null, lastLocationSentAt: 0,
       connections: [],
       players: [],
@@ -910,6 +893,18 @@
       imageSafetyModel: null,
       imageSafetyModelPromise: null,
     };
+
+    const gameModeSelect = document.getElementById('gameModeSelect');
+    function updateModeDurationPreview() {
+      const seconds={HOUSE:300,VILLAGE:1800,CITY:4500,COUNTRY:18000,WORLD:54000}[gameModeSelect.value]||300;
+      const hide=Math.min(60,seconds), seek=seconds-hide;
+      const formatDuration=n=>n>=3600 ? (n/3600)+' hours' : (n/60)+' minutes';
+      const label=document.getElementById('findingDurationLabel');
+      const help=document.getElementById('modeDurationHelp');
+      if(label) label.innerText=formatDuration(seek);
+      if(help) help.innerText=gameModeSelect.value==='HOUSE' ? 'House is a quick 5-minute round. Sleep lock is not used.' : 'Total game time: '+formatDuration(seconds)+'. Game automatically locks from 8:00 PM to 6:00 AM (local device time).';
+    }
+    if(gameModeSelect) { gameModeSelect.addEventListener('change',updateModeDurationPreview); updateModeDurationPreview(); }
 
     // Initialize random 4-digit ID generator
     function generateCode() {
@@ -971,9 +966,12 @@
       gameState.isHost = true;
       gameState.roomCode = generateCode();
       gameState.playerName = document.getElementById('playerNameInput').value || 'Host-Agent';
-      gameState.hidingDuration = parseInt(document.getElementById('hideDurationSelect').value) || 60;
-      gameState.seekingDuration = parseInt(document.getElementById('seekDurationSelect').value) || 300;
       gameState.gameMode = document.getElementById('gameModeSelect').value;
+      const modeSeconds = {HOUSE:300,VILLAGE:1800,CITY:4500,COUNTRY:18000,WORLD:54000};
+      const totalSeconds = modeSeconds[gameState.gameMode] || 300;
+      gameState.hidingDuration = Math.min(60,totalSeconds);
+      gameState.seekingDuration = Math.max(1,totalSeconds-gameState.hidingDuration);
+      gameState.isSleepLocked = false;
       
       document.getElementById('generatedRoomCode').innerText = gameState.roomCode;
       document.getElementById('waitingCodeDisplay').innerText = gameState.roomCode;
@@ -1116,6 +1114,8 @@
           gameState.timeRemaining = data.timeRemaining;
           gameState.currentPhase = data.currentPhase;
           gameState.isTimerPaused = data.isPaused;
+          gameState.isSleepLocked = !!data.isSleepLocked;
+          updateSleepLockUI();
           renderTimerUI();
           break;
 
@@ -1382,56 +1382,62 @@
       }
     }
 
+    function isSleepHours() {
+      const hour = new Date().getHours();
+      return hour >= 20 || hour < 6;
+    }
+
+    function updateSleepLockUI() {
+      let overlay=document.getElementById('sleepLockOverlay');
+      if(!overlay) {
+        overlay=document.createElement('div');
+        overlay.id='sleepLockOverlay';
+        overlay.className='hidden fixed inset-0 z-[9999] flex items-center justify-center p-5';
+        overlay.style.cssText='background:rgba(2,6,23,.94);backdrop-filter:blur(14px)';
+        overlay.innerHTML='<div class="kid-card max-w-sm w-full text-center space-y-4 p-6"><div class="text-6xl">🌙</div><div class="text-2xl font-black text-indigo-200">Night break!</div><p class="text-sm text-slate-300">The game is paused so everyone can sleep. It will unlock at 6:00 AM.</p><div class="text-xs text-indigo-200 font-bold">GAME LOCKED · 8 PM – 6 AM</div></div>';
+        document.body.appendChild(overlay);
+      }
+      const shouldLock=gameState.gameMode!=='HOUSE' && gameState.isSleepLocked;
+      overlay.classList.toggle('hidden',!shouldLock);
+    }
+
     function startHostMasterTimer() {
       clearInterval(gameState.timerInterval);
-
       gameState.timerInterval = setInterval(() => {
-        if (gameState.isTimerPaused) return;
-
-        gameState.timeRemaining--;
-
-        // Sync packet to Client
-        if (gameState.isHost) {
-          broadcastToPlayers({
-            type: 'TIMER_SYNC',
-            timeRemaining: gameState.timeRemaining,
-            currentPhase: gameState.currentPhase,
-            isPaused: gameState.isTimerPaused
-          });
+        if (gameState.gameMode !== 'HOUSE') {
+          const sleepNow=isSleepHours();
+          if (sleepNow !== gameState.isSleepLocked) {
+            gameState.isSleepLocked=sleepNow;
+            updateSleepLockUI();
+            broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked});
+            logEvent(sleepNow ? '🌙 Night break started. The game will resume at 6:00 AM.' : '☀️ Good morning! The game has resumed.');
+          }
+          if (sleepNow) return;
         }
-
+        if (gameState.isTimerPaused) return;
+        gameState.timeRemaining--;
+        broadcastToPlayers({type:'TIMER_SYNC',timeRemaining:gameState.timeRemaining,currentPhase:gameState.currentPhase,isPaused:gameState.isTimerPaused,isSleepLocked:gameState.isSleepLocked});
         renderTimerUI();
-
-        // Phase Transition Logic
         if (gameState.timeRemaining <= 0) {
           if (gameState.currentPhase === 'HIDING') {
             gameState.currentPhase = 'SEEKING';
             gameState.timeRemaining = gameState.seekingDuration;
             updateFindPictureUI();
-
-            if (gameState.isHost) {
-              broadcastToPlayers({
-                type: 'PHASE_CHANGE',
-                newPhase: 'SEEKING',
-                timeRemaining: gameState.seekingDuration
-              });
-            }
+            broadcastToPlayers({type:'PHASE_CHANGE',newPhase:'SEEKING',timeRemaining:gameState.seekingDuration});
             AudioEngine.playPhaseAlert();
-            logEvent('⏰ HIDING TIME EXPIRED! SEEKING PHASE HAS BEGUN!');
+            logEvent('⏰ Hiding time is over! The finding phase has begun!');
             renderTimerUI();
           } else {
             clearInterval(gameState.timerInterval);
-            AudioEngine.playTone(300, 'sawtooth', 0.8);
-            logEvent('Time is up! Hider wins the round.');
-            if (gameState.connection) broadcastToPlayers({
-              type: 'MATCH_END',
-              message: 'Time is up! The Hider wins this round!'
-            });
-            alert('Time is up! The Hider wins this round!');
+            AudioEngine.playTone(300,'sawtooth',0.8);
+            logEvent('Time is up! Hiders win this round.');
+            broadcastToPlayers({type:'MATCH_END',message:'Time is up! The Hiders win this round!'});
+            alert('Time is up! The Hiders win this round!');
             location.reload();
           }
         }
-      }, 1000);
+      },1000);
+      updateSleepLockUI();
     }
 
     function toggleTimerPause() {
@@ -1508,6 +1514,7 @@
 
     // --- OTHER ACTIONS ---
     function sendQuestion(text) {
+      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
       if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'SEEKER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('Questions unlock when seeking starts.');
@@ -1581,6 +1588,7 @@
     }
 
     function useHiderCard(index) {
+      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
       if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') return;
       const cardId = gameState.hiderCards[index];
       const card = HIDER_POWER_CARDS.find(item => item.id === cardId);
@@ -1618,6 +1626,7 @@
     }
 
     function sendHiderAnswer(ansText) {
+      if (gameState.isSleepLocked) return logEvent('🌙 The game is paused for the night.');
       if (!gameState.isHost && !gameState.connection) return;
       if (gameState.role !== 'HIDER' || gameState.currentPhase !== 'SEEKING') {
         logEvent('You can answer once the seeking phase begins.');
