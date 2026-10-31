@@ -1804,8 +1804,8 @@
     function updateFindPictureUI() {
       const qrCard = document.getElementById('hiderQrCard');
       if (!qrCard) return;
-      const ready = gameState.gameMode !== 'MARCO_POLO' && gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
-      qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready || gameState.gameMode === 'MARCO_POLO');
+      const ready = gameState.currentPhase === 'SEEKING' && !!gameState.scanToken;
+      qrCard.classList.toggle('hidden', gameState.role !== 'HIDER' || !ready);
       if (ready) {
         const box = document.getElementById('qrCodeBox');
         box.innerHTML = '';
