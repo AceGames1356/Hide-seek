@@ -1598,12 +1598,7 @@
       const el=document.getElementById('liveMap');
       if(!el || !window.L || window.liveHuntMap) return;
       window.liveHuntMap=L.map(el,{zoomControl:true,scrollWheelZoom:false,preferCanvas:true}).setView([0,0],2);
-      const cartoTiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors © CARTO',crossOrigin:true,subdomains:'abcd'}).addTo(window.liveHuntMap);
-      let fallbackTiles=null;
-      cartoTiles.on('tileerror',()=>{
-        if(fallbackTiles)return;
-        fallbackTiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors',crossOrigin:true}).addTo(window.liveHuntMap);
-      });
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'Tiles © Esri, HERE, Garmin, © OpenStreetMap contributors',crossOrigin:true}).addTo(window.liveHuntMap);
       window.liveHuntMap.on('click',e=>{ if(gameState.zoneDrawing) addZonePoint(e.latlng); });
       window.liveHuntMap.on('dblclick',e=>{ if(gameState.zoneDrawing){ L.DomEvent.stop(e); finishZoneDrawing(); } });
       renderCrossedAreas();
