@@ -898,7 +898,7 @@
     function updateModeDurationPreview() {
       const seconds={HOUSE:300,VILLAGE:1800,CITY:4500,COUNTRY:18000,WORLD:54000}[gameModeSelect.value]||300;
       const hide=Math.min(60,seconds), seek=seconds-hide;
-      const formatDuration=n=>n>=3600 ? (n/3600)+' hours' : (n/60)+' minutes';
+      const formatDuration=n=>{const h=Math.floor(n/3600),m=Math.floor((n%3600)/60);return h ? (h+'h'+(m?' '+m+'m':'')) : (m+' min');};
       const label=document.getElementById('findingDurationLabel');
       const help=document.getElementById('modeDurationHelp');
       if(label) label.innerText=formatDuration(seek);
