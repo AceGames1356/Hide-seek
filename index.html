@@ -332,6 +332,9 @@
 
     /* Hide countdown: timer only. The hunt interface returns when seeking begins. */
     #viewSeeker.phase-hiding, #viewHider.phase-hiding { min-height: calc(100dvh - 5rem); justify-content: center; }
+    /* During hiding, remove every gameplay panel. Leave only the countdown card visible. */
+    #viewSeeker.phase-hiding > :not(.phase-timer-card),
+    #viewHider.phase-hiding > :not(.phase-timer-card) { display: none !important; }
     .phase-hiding .phase-timer-card {
       min-height: 72dvh; width: 100%; display: flex; align-items: center;
       justify-content: center; border: 1px solid rgba(148,163,184,.2);
