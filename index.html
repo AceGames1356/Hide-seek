@@ -328,7 +328,8 @@
   <style id="fair-play-rules">
     /* Both players share one timer; no host-only pause/reset advantage. */
     #seekerHostControls, #hiderHostControls { display: none !important; }
-  </style>
+  #liveMap{min-height:300px;border-radius:18px;overflow:hidden}#zoneDrawBtn,#zoneFinishBtn{min-height:40px} .leaflet-tooltip{font-weight:900;letter-spacing:.08em;color:#be123c;border:1px solid #fb7185;background:#fff1f2}
+</style>
 
 </head>
 <body class="h-full flex flex-col font-sans select-none overflow-x-hidden antialiased bg-slate-950 text-slate-100">
@@ -725,6 +726,13 @@
       </div>
       <div class="map-legend"><span><i class="map-dot" style="background:#fb7185"></i>Seekers</span><span><i class="map-dot" style="background:#34d399"></i>Hiders</span><span><i class="map-dot" style="background:#a5b4fc"></i>You</span></div>
       <div id="liveMap" role="application" aria-label="Live player map"></div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="zoneDrawBtn" type="button" onclick="toggleZoneDrawing()" class="rounded-xl px-3 py-2 text-xs font-bold bg-rose-500/15 border border-rose-400/30 text-rose-200">✏️ Cross out area</button>
+        <button id="zoneFinishBtn" type="button" onclick="finishZoneDrawing()" class="hidden rounded-xl px-3 py-2 text-xs font-bold bg-rose-500 text-white">Finish shape</button>
+        <button type="button" onclick="undoZonePoint()" class="rounded-xl px-3 py-2 text-xs bg-slate-800 border border-slate-700 text-slate-200">Undo point</button>
+        <button type="button" onclick="clearCrossedAreas()" class="rounded-xl px-3 py-2 text-xs bg-slate-800 border border-slate-700 text-slate-200">Clear areas</button>
+        <span id="zoneDrawStatus" class="text-[11px] text-slate-400">Seekers can mark places already searched.</span>
+      </div>
       <div class="flex items-center justify-between gap-2"><div id="locationStatus" class="text-xs text-slate-400">Waiting for location permission…</div><button type="button" onclick="recenterLiveMap()" class="px-3 py-2 bg-indigo-500/20 border border-indigo-300/20 text-indigo-100 text-xs">◎ Recenter</button></div>
       <div id="liveLocationList" class="grid grid-cols-2 gap-2"><p class="text-xs text-slate-400 col-span-2">Waiting for players to share their location…</p></div>
       <p class="text-[10px] leading-relaxed text-slate-500">Location sharing is optional. Play only in safe, public or permitted places. Never use this to track anyone outside the game.</p>
@@ -880,6 +888,7 @@
       gameMode: 'HOUSE',
       isSleepLocked: false,
       locations: {}, locationWatchId: null, lastLocationSentAt: 0,
+      crossedAreas: [], zoneDrawing: false, zoneDraft: [],
       connections: [],
       players: [],
       qrScannerStream: null,
@@ -1208,6 +1217,14 @@
           gameState.locations[data.playerId || 'peer'] = {playerId:data.playerId || 'peer',name:data.name || 'Player',role:data.role || 'HIDER',lat:Number(data.lat),lon:Number(data.lon),updatedAt:Date.now(),isSelf:false};
           renderLiveMap();
           break;
+        case 'CROSSED_AREAS':
+          if(Array.isArray(data.areas)){
+            gameState.crossedAreas=data.areas.filter(a=>a&&Array.isArray(a.points)&&a.points.length>=3).slice(0,40);
+            renderCrossedAreas();
+            if(gameState.isHost)broadcastToPlayers({type:'CROSSED_AREAS',areas:gameState.crossedAreas},sourceConn);
+            logEvent('🗺️ The map’s searched areas were updated.');
+          }
+          break;
         case 'MATCH_END':
           clearInterval(gameState.timerInterval);
           alert(data.message || 'Time is up! The Hider wins this round.');
@@ -1305,11 +1322,72 @@
     }
     let liveMapMarkers = {};
     let liveMapSelfMarker = null;
+    let crossedAreaLayers = []; let zoneDraftLayer = null; let zoneDraftPoints = [];
     function initLiveHuntMap() {
       const el=document.getElementById('liveMap');
       if(!el || !window.L || window.liveHuntMap) return;
       window.liveHuntMap=L.map(el,{zoomControl:true,scrollWheelZoom:false}).setView([14.5995,120.9842],12);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(window.liveHuntMap);
+      window.liveHuntMap.on('click',e=>{ if(gameState.zoneDrawing) addZonePoint(e.latlng); });
+      window.liveHuntMap.on('dblclick',e=>{ if(gameState.zoneDrawing){ L.DomEvent.stop(e); finishZoneDrawing(); } });
+      renderCrossedAreas();
+    }
+    function updateZoneDrawUI(){
+      const b=document.getElementById('zoneDrawBtn'),f=document.getElementById('zoneFinishBtn'),st=document.getElementById('zoneDrawStatus');
+      if(b){b.textContent=gameState.zoneDrawing?'✕ Stop drawing':'✏️ Cross out area';b.classList.toggle('bg-rose-500',gameState.zoneDrawing);}
+      if(f)f.classList.toggle('hidden',!gameState.zoneDrawing);
+      if(st)st.textContent=gameState.zoneDrawing?'Tap the map to add corners. Finish with 3+ points.':'Red areas are crossed out / already searched.';
+    }
+    function toggleZoneDrawing(){
+      if(gameState.role!=='SEEKER')return logEvent('Only Seekers can cross out map areas.');
+      if(gameState.currentPhase!=='SEEKING')return logEvent('Area marking unlocks when seeking starts.');
+      gameState.zoneDrawing=!gameState.zoneDrawing; gameState.zoneDraft=[];
+      if(zoneDraftLayer&&window.liveHuntMap){window.liveHuntMap.removeLayer(zoneDraftLayer);zoneDraftLayer=null;}
+      if(gameState.zoneDrawing&&window.liveHuntMap){window.liveHuntMap.doubleClickZoom.disable();}
+      else if(window.liveHuntMap){window.liveHuntMap.doubleClickZoom.enable();}
+      updateZoneDrawUI();
+    }
+    function addZonePoint(point){
+      gameState.zoneDraft.push([point.lat,point.lng]);
+      if(zoneDraftLayer&&window.liveHuntMap)window.liveHuntMap.removeLayer(zoneDraftLayer);
+      if(window.liveHuntMap&&gameState.zoneDraft.length>1){
+        zoneDraftLayer=L.polyline(gameState.zoneDraft,{color:'#fb7185',weight:4,dashArray:'7 7'}).addTo(window.liveHuntMap);
+      }
+      updateZoneDrawUI();
+    }
+    function finishZoneDrawing(){
+      if(!gameState.zoneDrawing)return;
+      if(gameState.zoneDraft.length<3)return logEvent('Add at least 3 corners to mark an area.');
+      const areas=[...gameState.crossedAreas,{id:'zone-'+Date.now(),points:gameState.zoneDraft.map(p=>[p[0],p[1]])}];
+      gameState.zoneDrawing=false;gameState.zoneDraft=[];
+      if(zoneDraftLayer&&window.liveHuntMap){window.liveHuntMap.removeLayer(zoneDraftLayer);zoneDraftLayer=null;}
+      if(window.liveHuntMap)window.liveHuntMap.doubleClickZoom.enable();
+      sendCrossedAreas(areas);updateZoneDrawUI();
+      logEvent('🗺️ Area crossed out on the map.');
+    }
+    function undoZonePoint(){
+      if(gameState.zoneDrawing&&gameState.zoneDraft.length){gameState.zoneDraft.pop();if(zoneDraftLayer&&window.liveHuntMap)window.liveHuntMap.removeLayer(zoneDraftLayer);zoneDraftLayer=null;if(gameState.zoneDraft.length>1)zoneDraftLayer=L.polyline(gameState.zoneDraft,{color:'#fb7185',weight:4,dashArray:'7 7'}).addTo(window.liveHuntMap);return;}
+      if(gameState.role==='SEEKER'&&gameState.crossedAreas.length){sendCrossedAreas(gameState.crossedAreas.slice(0,-1));}
+    }
+    function clearCrossedAreas(){
+      if(gameState.role!=='SEEKER')return;
+      if(!gameState.crossedAreas.length)return;
+      if(!confirm('Clear every crossed-out area for all players?'))return;
+      sendCrossedAreas([]);
+    }
+    function sendCrossedAreas(areas){
+      gameState.crossedAreas=areas;renderCrossedAreas();
+      sendGameMessage({type:'CROSSED_AREAS',areas});
+    }
+    function renderCrossedAreas(){
+      if(!window.liveHuntMap||!window.L)return;
+      crossedAreaLayers.forEach(layer=>window.liveHuntMap.removeLayer(layer));crossedAreaLayers=[];
+      (gameState.crossedAreas||[]).forEach(area=>{
+        if(!Array.isArray(area.points)||area.points.length<3)return;
+        const layer=L.polygon(area.points,{color:'#fb7185',weight:2,fillColor:'#e11d48',fillOpacity:.24,dashArray:'6 5'}).addTo(window.liveHuntMap);
+        layer.bindTooltip('CROSSED OUT',{sticky:true,direction:'center'});
+        crossedAreaLayers.push(layer);
+      });
     }
     function recenterLiveMap() {
       const own=Object.values(gameState.locations).find(p=>p.isSelf && Number.isFinite(p.lat) && Number.isFinite(p.lon));
@@ -1350,8 +1428,8 @@
         showView('viewHider');
       }
       startLiveLocationSharing();
-      renderLiveMap();
-      setTimeout(()=>{ if(window.liveHuntMap) window.liveHuntMap.invalidateSize(); },250);
+      renderLiveMap(); updateZoneDrawUI();
+      setTimeout(()=>{ if(window.liveHuntMap) { window.liveHuntMap.invalidateSize(); renderCrossedAreas(); } },250);
 
       // Display Host Controls if current player is host
       if (gameState.isHost) {
@@ -1379,6 +1457,7 @@
       gameState.seekerScannerBlockedUntil = 0;
       renderHiderCards();
       gameState.lastQuestionAt = 0;
+      gameState.crossedAreas=[]; renderCrossedAreas();
       gameState.lastPingAt = 0;
       gameState.lastDecoyAt = 0;
 
