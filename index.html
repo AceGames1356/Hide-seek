@@ -1919,18 +1919,21 @@
       if (!hand || !count) return;
       count.innerText = gameState.hiderCards.length + ' / 6';
       if (!gameState.hiderCards.length) {
-        hand.innerHTML = '<div class="power-empty">Your first card arrives when a Seeker asks a question.</div>';
+        hand.innerHTML = '<div class="power-empty"><span>🃏</span><b>Your hand is empty</b><small>Answer a Seeker question to earn your first card.</small></div>';
         return;
       }
       hand.innerHTML = gameState.hiderCards.map((id,index) => {
         const card = HIDER_POWER_CARDS.find(item => item.id === id);
         if (!card) return '';
-        return '<div class="power-card ' + card.kind + '">' +
-          '<div class="power-card-icon">' + card.icon + '</div>' +
+        const type = card.kind === 'boost' ? 'POWER-UP' : 'CURSE';
+        const stamp = card.kind === 'boost' ? '✦' : '☠';
+        return '<article class="power-card ' + card.kind + '">' +
+          '<div class="card-face-top"><span>HIDE & SEEK</span><span>' + type + '</span></div>' +
+          '<div class="card-art ' + card.kind + '"><span>' + card.icon + '</span><b>' + stamp + '</b></div>' +
           '<div class="power-card-info"><div class="power-card-name">' + card.name + '</div>' +
-          '<div class="power-card-type">' + (card.kind === 'boost' ? 'HIDER BOOST' : 'SEEKER CURSE') + '</div>' +
           '<div class="power-card-desc">' + card.description + '</div></div>' +
-          '<button class="power-card-use" onclick="useHiderCard(' + index + ')">USE</button></div>';
+          '<div class="card-face-bottom"><span>HIDER DECK · ' + (index + 1) + '</span>' +
+          '<button class="power-card-use" onclick="useHiderCard(' + index + ')">PLAY CARD ↗</button></div></article>';
       }).join('');
     }
 
